@@ -1,6 +1,7 @@
 package br.com.carbonifera.ete.measurement;
 
 import br.com.carbonifera.ete.station.Station;
+import br.com.carbonifera.ete.device.DeviceKey;
 import br.com.carbonifera.ete.user.AppUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,13 +13,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "flow_measurements")
+@Table(name = "flow_measurements", uniqueConstraints = @UniqueConstraint(
+        name = "uk_flow_device_window", columnNames = {"device_key_id", "device_window_end"}))
 public class FlowMeasurement {
 
     @Id
@@ -41,9 +44,22 @@ public class FlowMeasurement {
     @Column(nullable = false)
     private Instant measuredAt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "created_by_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
     private AppUser createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "device_key_id")
+    private DeviceKey deviceKey;
+
+    @Column(name = "device_name")
+    private String deviceName;
+
+    @Column(name = "device_window_end", updatable = false)
+    private Instant deviceWindowEnd;
+
+    @Column(name = "sample_count")
+    private Integer sampleCount;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -65,6 +81,18 @@ public class FlowMeasurement {
         this.flowLiters = flowLiters;
         this.measuredAt = measuredAt;
         this.createdBy = createdBy;
+    }
+
+    public static FlowMeasurement fromDevice(Station station, BigDecimal flowLiters, BigDecimal heightCm,
+                                             Instant measuredAt, DeviceKey deviceKey, String deviceName,
+                                             Instant deviceWindowEnd, Integer sampleCount) {
+        FlowMeasurement measurement = new FlowMeasurement(station, flowLiters, measuredAt, null);
+        measurement.heightCm = heightCm;
+        measurement.deviceKey = deviceKey;
+        measurement.deviceName = deviceName;
+        measurement.deviceWindowEnd = deviceWindowEnd;
+        measurement.sampleCount = sampleCount;
+        return measurement;
     }
 
     public void setClientRequestId(UUID clientRequestId) { this.clientRequestId = clientRequestId; }
@@ -113,6 +141,14 @@ public class FlowMeasurement {
     public AppUser getCreatedBy() {
         return createdBy;
     }
+
+    public DeviceKey getDeviceKey() { return deviceKey; }
+
+    public String getDeviceName() { return deviceName; }
+
+    public Instant getDeviceWindowEnd() { return deviceWindowEnd; }
+
+    public Integer getSampleCount() { return sampleCount; }
 
     public Instant getCreatedAt() {
         return createdAt;
