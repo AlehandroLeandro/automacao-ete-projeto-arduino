@@ -62,7 +62,7 @@ class PushSubscriptionControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OPERATOR")
     void publicKeyReturnsConfiguredVapidPublicKey() throws Exception {
         mockMvc.perform(get("/api/push/public-key"))
                 .andExpect(status().isOk())
@@ -70,7 +70,7 @@ class PushSubscriptionControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OPERATOR")
     void subscribeDelegatesRequestToService() throws Exception {
         mockMvc.perform(post("/api/push/subscriptions")
                         .contentType("application/json")
@@ -86,7 +86,7 @@ class PushSubscriptionControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OPERATOR")
     void unsubscribeDelegatesEndpointToService() throws Exception {
         mockMvc.perform(delete("/api/push/subscriptions")
                         .contentType("application/json")
@@ -97,7 +97,7 @@ class PushSubscriptionControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "OPERATOR")
     void subscribeRejectsOversizedEndpoint() throws Exception {
         String oversizedEndpoint = "https://push.example/" + "a".repeat(501);
 
