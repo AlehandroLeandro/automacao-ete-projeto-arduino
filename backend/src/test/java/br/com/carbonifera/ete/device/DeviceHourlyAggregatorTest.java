@@ -1,5 +1,9 @@
 package br.com.carbonifera.ete.device;
 
+import br.com.carbonifera.ete.audit.AuditAction;
+import br.com.carbonifera.ete.audit.AuditEventRepository;
+import br.com.carbonifera.ete.audit.AuditRecordType;
+import br.com.carbonifera.ete.config.SchedulingConfig;
 import br.com.carbonifera.ete.measurement.FlowMeasurement;
 import br.com.carbonifera.ete.measurement.FlowMeasurementRepository;
 import br.com.carbonifera.ete.measurement.PhMeasurement;
@@ -8,17 +12,15 @@ import br.com.carbonifera.ete.measurement.PhWaterType;
 import br.com.carbonifera.ete.station.Station;
 import br.com.carbonifera.ete.user.AppUser;
 import br.com.carbonifera.ete.user.UserRole;
-import br.com.carbonifera.ete.config.SchedulingConfig;
-import br.com.carbonifera.ete.measurement.PhWaterType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -49,6 +51,7 @@ class DeviceHourlyAggregatorTest {
     private FlowMeasurementRepository flowRepository;
     private PhMeasurementRepository phRepository;
     private DeviceReadingRepository readingRepository;
+    private AuditEventRepository auditEvents;
     private PlatformTransactionManager transactionManager;
     private DeviceHourlyAggregator aggregator;
     private DeviceKey key;
@@ -65,10 +68,11 @@ class DeviceHourlyAggregatorTest {
         flowRepository = mock(FlowMeasurementRepository.class);
         phRepository = mock(PhMeasurementRepository.class);
         readingRepository = mock(DeviceReadingRepository.class);
+        auditEvents = mock(AuditEventRepository.class);
         transactionManager = mock(PlatformTransactionManager.class);
         when(flowRepository.save(any(FlowMeasurement.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(phRepository.save(any(PhMeasurement.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        aggregator = new DeviceHourlyAggregator(readingRepository, flowRepository, phRepository,
+        aggregator = new DeviceHourlyAggregator(readingRepository, flowRepository, phRepository, auditEvents,
                 Clock.fixed(NOW, ZoneId.of("America/Sao_Paulo")), transactionManager);
         Station station = new Station("Station", "station");
         key = mock(DeviceKey.class);
@@ -288,6 +292,124 @@ class DeviceHourlyAggregatorTest {
         assertThat(databaseReadings.findById(succeededRaw.getId())).isEmpty();
         assertThat(databasePh.findAll().stream().filter(row -> row.getDeviceKey().getId().equals(persistedKey.getId())))
                 .hasSize(2);
+    }
+
+    @Test
+    void mergesLatePhWithWeightedAverageAndPreservesMeasuredAt() {
+        Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
+        Instant originalTime = Instant.parse("2026-11-13T18:00:00Z");
+        PhMeasurement existing = PhMeasurement.fromDevice(key.getStation(), PhWaterType.RAW, new BigDecimal("7.00"),
+                originalTime, key, "Bomba 1", aggregator.windowEnd(measuredAt), 60);
+        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+                aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+
+        assertThat(existing.getPh()).isEqualByComparingTo("7.02");
+        assertThat(existing.getSampleCount()).isEqualTo(61);
+        assertThat(existing.getMeasuredAt()).isEqualTo(originalTime);
+        verify(phRepository).save(existing);
+    }
+
+    @Test
+    void discardsEditedPhWithoutChangingIt() {
+        Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
+        PhMeasurement existing = phRecord(measuredAt);
+        setRecordId(existing);
+        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+                aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
+        when(auditEvents.existsByRecordTypeAndRecordIdAndAction(AuditRecordType.PH_MEASUREMENT,
+                existing.getId(), AuditAction.UPDATED)).thenReturn(true);
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.DISCARDED_EDITED);
+        assertThat(existing.getPh()).isEqualByComparingTo("7.00");
+        assertThat(existing.getSampleCount()).isEqualTo(60);
+        verify(phRepository, never()).save(any(PhMeasurement.class));
+    }
+
+    @Test
+    void discardsDeletedPhWithoutChangingIt() {
+        Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
+        PhMeasurement existing = phRecord(measuredAt);
+        existing.softDelete(null);
+        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+                aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.DISCARDED_DELETED);
+        assertThat(existing.isDeleted()).isTrue();
+        assertThat(existing.getPh()).isEqualByComparingTo("7.00");
+        assertThat(existing.getSampleCount()).isEqualTo(60);
+        assertThat(existing.getMeasuredAt()).isEqualTo(Instant.parse("2026-11-13T18:00:00Z"));
+        verify(phRepository, never()).save(any(PhMeasurement.class));
+    }
+
+    @Test
+    void discardsTooOldReadingWithoutPersistingRawOrAverage() {
+        Instant measuredAt = Instant.parse("2026-11-12T17:00:00Z");
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.DISCARDED_TOO_OLD);
+        verify(readingRepository, never()).save(any(DeviceReading.class));
+        verify(phRepository, never()).save(any(PhMeasurement.class));
+    }
+
+    @Test
+    void storesLateReadingRawWhenClosedHourHasNoAverage() {
+        Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
+        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+                aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.empty());
+        when(readingRepository.save(any(DeviceReading.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.RAW_STORED);
+        org.mockito.ArgumentCaptor<DeviceReading> raw = org.mockito.ArgumentCaptor.forClass(DeviceReading.class);
+        verify(readingRepository).save(raw.capture());
+        assertThat(raw.getValue().getMeasuredAt()).isEqualTo(measuredAt);
+        assertThat(raw.getValue().getValue()).isEqualByComparingTo("8.00");
+        verify(phRepository, never()).save(any(PhMeasurement.class));
+    }
+
+    @Test
+    void mergesLateFlowHeightAndLitersAsWeightedValues() {
+        Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
+        FlowMeasurement existing = FlowMeasurement.fromDevice(key.getStation(), new BigDecimal("12.00"), new BigDecimal("7.00"),
+                Instant.parse("2026-11-13T18:00:00Z"), key, "Bomba 1", aggregator.windowEnd(measuredAt), 60);
+        when(flowRepository.findByDeviceKeyAndDeviceWindowEnd(key, aggregator.windowEnd(measuredAt)))
+                .thenReturn(java.util.Optional.of(existing));
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.FLOW, measuredAt, new BigDecimal("8.00"),
+                new BigDecimal("72.00"), NOW)).isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+
+        assertThat(existing.getHeightCm()).isEqualByComparingTo("7.02");
+        assertThat(existing.getFlowLiters()).isEqualByComparingTo("12.98");
+        assertThat(existing.getSampleCount()).isEqualTo(61);
+        verify(flowRepository).save(existing);
+    }
+
+    @Test
+    void mergesLateTreatedPhUsingTheMatchingHourlyRecord() {
+        Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
+        PhMeasurement existing = PhMeasurement.fromDevice(key.getStation(), PhWaterType.TREATED, new BigDecimal("6.00"),
+                Instant.parse("2026-11-13T18:00:00Z"), key, "Bomba 1", aggregator.windowEnd(measuredAt), 2);
+        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.TREATED,
+                aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_TREATED, measuredAt, new BigDecimal("7.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+        assertThat(existing.getPh()).isEqualByComparingTo("6.33");
+        assertThat(existing.getSampleCount()).isEqualTo(3);
+    }
+
+    private PhMeasurement phRecord(Instant measuredAt) {
+        return PhMeasurement.fromDevice(key.getStation(), PhWaterType.RAW, new BigDecimal("7.00"),
+                Instant.parse("2026-11-13T18:00:00Z"), key, "Bomba 1", aggregator.windowEnd(measuredAt), 60);
+    }
+
+    private void setRecordId(Object record) {
+        ReflectionTestUtils.setField(record, "id", UUID.randomUUID());
     }
 
     private DeviceKey seedKey(String suffix) {

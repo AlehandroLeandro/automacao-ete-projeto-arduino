@@ -112,6 +112,11 @@ public class PhMeasurement {
         this.measuredAt = measuredAt;
     }
 
+    public void mergeDeviceReading(BigDecimal ph, int sampleCount) {
+        this.ph = ph;
+        this.sampleCount = sampleCount;
+    }
+
     public void softDelete(AppUser deletedBy) {
         this.deleted = true;
         this.deletedAt = Instant.now();

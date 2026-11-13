@@ -108,6 +108,12 @@ public class FlowMeasurement {
         this.measuredAt = measuredAt;
     }
 
+    public void mergeDeviceReading(BigDecimal flowLiters, BigDecimal heightCm, int sampleCount) {
+        this.flowLiters = flowLiters;
+        this.heightCm = heightCm;
+        this.sampleCount = sampleCount;
+    }
+
     public void softDelete(AppUser deletedBy) {
         this.deleted = true;
         this.deletedAt = Instant.now();
