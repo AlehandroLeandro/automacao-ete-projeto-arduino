@@ -15,3 +15,8 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+app:
+  device:
+    encryption-secret: test_device_key_encryption_secret_32_chars_minimum
+    offline-minutes: 5
+    rate-limit-per-minute: 10

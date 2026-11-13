@@ -28,6 +28,10 @@ app:
   shift-night-start: ${SHIFT_NIGHT_START:17:00}
   operator:
     record-window-hours: ${OPERATOR_RECORD_WINDOW_HOURS:24}
+  device:
+    encryption-secret: ${DEVICE_KEY_ENCRYPTION_SECRET:}
+    offline-minutes: ${DEVICE_OFFLINE_MINUTES:5}
+    rate-limit-per-minute: ${DEVICE_RATE_LIMIT_PER_MINUTE:10}
   push:
     vapid:
       public-key: ${PUSH_VAPID_PUBLIC_KEY:}
