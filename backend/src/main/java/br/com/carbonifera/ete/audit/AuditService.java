@@ -2,6 +2,8 @@ package br.com.carbonifera.ete.audit;
 
 import br.com.carbonifera.ete.common.error.BusinessException;
 import br.com.carbonifera.ete.common.error.ResourceNotFoundException;
+import br.com.carbonifera.ete.device.DeviceKey;
+import br.com.carbonifera.ete.device.DeviceKeyRepository;
 import br.com.carbonifera.ete.measurement.FlowMeasurement;
 import br.com.carbonifera.ete.measurement.FlowMeasurementRepository;
 import br.com.carbonifera.ete.measurement.PhMeasurement;
@@ -29,19 +31,22 @@ public class AuditService {
     private final FlowMeasurementRepository flowMeasurementRepository;
     private final StoppageRepository stoppageRepository;
     private final StationScopeService stationScopeService;
+    private final DeviceKeyRepository deviceKeyRepository;
 
     public AuditService(
             AuditEventRepository auditEventRepository,
             PhMeasurementRepository phMeasurementRepository,
             FlowMeasurementRepository flowMeasurementRepository,
             StoppageRepository stoppageRepository,
-            StationScopeService stationScopeService
+            StationScopeService stationScopeService,
+            DeviceKeyRepository deviceKeyRepository
     ) {
         this.auditEventRepository = auditEventRepository;
         this.phMeasurementRepository = phMeasurementRepository;
         this.flowMeasurementRepository = flowMeasurementRepository;
         this.stoppageRepository = stoppageRepository;
         this.stationScopeService = stationScopeService;
+        this.deviceKeyRepository = deviceKeyRepository;
     }
 
     @Transactional
@@ -124,6 +129,11 @@ public class AuditService {
                 Stoppage stoppage = stoppageRepository.findById(recordId)
                         .orElseThrow(() -> new ResourceNotFoundException("Stoppage not found"));
                 yield stoppage.getStation();
+            }
+            case DEVICE_KEY -> {
+                DeviceKey deviceKey = deviceKeyRepository.findById(recordId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Device key not found"));
+                yield deviceKey.getStation();
             }
         };
     }

@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface AuditEventRepository extends JpaRepository<AuditEvent, UUID> {
 
     List<AuditEvent> findAllByRecordTypeAndRecordIdOrderByOccurredAtDesc(AuditRecordType recordType, UUID recordId);
+
+    boolean existsByRecordTypeAndRecordIdAndAction(AuditRecordType recordType, UUID recordId, AuditAction action);
 }
