@@ -16,19 +16,25 @@ public class SensitiveConfigurationValidator {
             "replace_with_database_password",
             "replace_with_a_random_secret_with_at_least_32_characters",
             "replace_with_initial_admin_password",
-            "change_this_to_a_very_long_random_secret_with_at_least_32_chars"
+            "change_this_to_a_very_long_random_secret_with_at_least_32_chars",
+            "replace_with_a_random_device_key_secret_with_32_chars"
     );
 
     @Bean
     CommandLineRunner validateSensitiveConfiguration(
             JwtProperties jwtProperties,
             InitialAdminProperties initialAdminProperties,
+            DeviceProperties deviceProperties,
             Environment environment
     ) {
         return args -> {
             rejectPlaceholder("DB_PASSWORD", environment.getRequiredProperty("DB_PASSWORD"));
             rejectPlaceholder("JWT_SECRET", jwtProperties.secret());
             rejectPlaceholder("INITIAL_ADMIN_PASSWORD", initialAdminProperties.password());
+            rejectPlaceholder("DEVICE_KEY_ENCRYPTION_SECRET", deviceProperties.encryptionSecret());
+            if (deviceProperties.encryptionSecret().length() < 32) {
+                throw new IllegalStateException("DEVICE_KEY_ENCRYPTION_SECRET must be at least 32 characters");
+            }
         };
     }
 
