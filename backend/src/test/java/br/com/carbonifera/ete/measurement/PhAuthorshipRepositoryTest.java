@@ -78,9 +78,9 @@ class PhAuthorshipRepositoryTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(repository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW, windowEnd))
+        assertThat(repository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.RAW, windowEnd))
                 .get().extracting(PhMeasurement::getId).isEqualTo(raw.getId());
-        assertThat(repository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.TREATED, windowEnd))
+        assertThat(repository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.TREATED, windowEnd))
                 .get().extracting(PhMeasurement::getId).isEqualTo(treated.getId());
     }
 
