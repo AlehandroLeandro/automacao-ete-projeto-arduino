@@ -1,5 +1,6 @@
 package br.com.carbonifera.ete.measurement;
 
+import br.com.carbonifera.ete.device.DeviceKey;
 import br.com.carbonifera.ete.station.Station;
 import br.com.carbonifera.ete.user.AppUser;
 import jakarta.persistence.Column;
@@ -14,13 +15,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "ph_measurements")
+@Table(name = "ph_measurements", uniqueConstraints = @UniqueConstraint(
+        name = "uk_ph_device_type_window", columnNames = {"device_key_id", "type", "device_window_end"}))
 public class PhMeasurement {
 
     @Id
@@ -44,9 +47,22 @@ public class PhMeasurement {
     @Column(nullable = false)
     private Instant measuredAt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "created_by_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
     private AppUser createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "device_key_id")
+    private DeviceKey deviceKey;
+
+    @Column(name = "device_name")
+    private String deviceName;
+
+    @Column(name = "device_window_end", updatable = false)
+    private Instant deviceWindowEnd;
+
+    @Column(name = "sample_count")
+    private Integer sampleCount;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -69,6 +85,17 @@ public class PhMeasurement {
         this.ph = ph;
         this.measuredAt = measuredAt;
         this.createdBy = createdBy;
+    }
+
+    public static PhMeasurement fromDevice(Station station, PhWaterType type, BigDecimal ph, Instant measuredAt,
+                                           DeviceKey deviceKey, String deviceName, Instant deviceWindowEnd,
+                                           Integer sampleCount) {
+        PhMeasurement measurement = new PhMeasurement(station, type, ph, measuredAt, null);
+        measurement.deviceKey = deviceKey;
+        measurement.deviceName = deviceName;
+        measurement.deviceWindowEnd = deviceWindowEnd;
+        measurement.sampleCount = sampleCount;
+        return measurement;
     }
 
     public void setClientRequestId(UUID clientRequestId) { this.clientRequestId = clientRequestId; }
@@ -114,6 +141,14 @@ public class PhMeasurement {
     public AppUser getCreatedBy() {
         return createdBy;
     }
+
+    public DeviceKey getDeviceKey() { return deviceKey; }
+
+    public String getDeviceName() { return deviceName; }
+
+    public Instant getDeviceWindowEnd() { return deviceWindowEnd; }
+
+    public Integer getSampleCount() { return sampleCount; }
 
     public Instant getCreatedAt() {
         return createdAt;
