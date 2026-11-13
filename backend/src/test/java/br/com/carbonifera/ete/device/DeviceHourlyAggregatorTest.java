@@ -623,6 +623,60 @@ class DeviceHourlyAggregatorTest {
         assertThat(databaseReadings.findById(merged.getId())).isEmpty();
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void aggregatesPartialHourWithRequestedNowAndWindowEnd() {
+        DeviceKey persistedKey = seedKey("delete-partial");
+        DeviceReading raw = databaseReadings.saveAndFlush(new DeviceReading(persistedKey,
+                DeviceReadingType.PH_RAW, new BigDecimal("6.75"), null, NOW.minusSeconds(30)));
+
+        databaseAggregator.aggregateKeyIncludingPartial(persistedKey, NOW);
+
+        assertThat(databaseReadings.findById(raw.getId())).isEmpty();
+        assertThat(databasePh.findAll().stream().filter(row -> row.getDeviceKey().getId().equals(persistedKey.getId())))
+                .singleElement().satisfies(average -> {
+                    assertThat(average.getMeasuredAt()).isEqualTo(NOW);
+                    assertThat(average.getDeviceWindowEnd()).isEqualTo(databaseAggregator.windowEnd(raw.getMeasuredAt()));
+                    assertThat(average.getPh()).isEqualByComparingTo("6.75");
+                });
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void aggregatesClosedHoursForKeyWhenIncludingPartial() {
+        DeviceKey persistedKey = seedKey("delete-closed");
+        Instant closedAt = NOW.minusSeconds(3600);
+        DeviceReading raw = databaseReadings.saveAndFlush(new DeviceReading(persistedKey,
+                DeviceReadingType.PH_RAW, new BigDecimal("7.25"), null, closedAt));
+
+        databaseAggregator.aggregateKeyIncludingPartial(persistedKey, NOW);
+
+        assertThat(databaseReadings.findById(raw.getId())).isEmpty();
+        assertThat(databasePh.findAll().stream().filter(row -> row.getDeviceKey().getId().equals(persistedKey.getId())))
+                .singleElement().satisfies(average -> {
+                    assertThat(average.getMeasuredAt()).isEqualTo(databaseAggregator.windowEnd(closedAt));
+                    assertThat(average.getDeviceWindowEnd()).isEqualTo(databaseAggregator.windowEnd(closedAt));
+                });
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void doesNotAggregateOrDeleteAnotherKeysReadings() {
+        DeviceKey persistedKey = seedKey("delete-target");
+        DeviceKey otherKey = seedKey("delete-other");
+        DeviceReading targetRaw = databaseReadings.saveAndFlush(new DeviceReading(persistedKey,
+                DeviceReadingType.PH_RAW, new BigDecimal("6.00"), null, NOW.minusSeconds(30)));
+        DeviceReading otherRaw = databaseReadings.saveAndFlush(new DeviceReading(otherKey,
+                DeviceReadingType.PH_RAW, new BigDecimal("8.00"), null, NOW.minusSeconds(30)));
+
+        databaseAggregator.aggregateKeyIncludingPartial(persistedKey, NOW);
+
+        assertThat(databaseReadings.findById(targetRaw.getId())).isEmpty();
+        assertThat(databaseReadings.findById(otherRaw.getId())).isPresent();
+        assertThat(databasePh.findAll().stream().filter(row -> row.getDeviceKey().getId().equals(otherKey.getId())))
+                .isEmpty();
+    }
+
     private PhMeasurement phRecord(Instant measuredAt) {
         return PhMeasurement.fromDevice(key.getStation(), PhWaterType.RAW, new BigDecimal("7.00"),
                 Instant.parse("2026-11-13T18:00:00Z"), key, "Bomba 1", aggregator.windowEnd(measuredAt), 60);

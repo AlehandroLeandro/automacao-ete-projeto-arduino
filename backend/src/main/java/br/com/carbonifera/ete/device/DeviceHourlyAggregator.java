@@ -82,6 +82,24 @@ public class DeviceHourlyAggregator {
         });
     }
 
+    public void aggregateKeyIncludingPartial(DeviceKey key, Instant now) {
+        mergeTransaction.executeWithoutResult(status -> {
+            deviceKeyRepository.lockById(key.getId());
+            List<DeviceReading> pending = deviceReadingRepository.findAllByDeviceKeyOrderByMeasuredAtAsc(key);
+            Map<Group, List<DeviceReading>> groups = pending.stream()
+                    .collect(Collectors.groupingBy(reading -> new Group(key, reading.getType(),
+                            windowEnd(reading.getMeasuredAt())), LinkedHashMap::new, Collectors.toList()));
+            groups.forEach((group, readings) -> {
+                if (mergeExisting(key, group.type(), group.windowEnd(), readings) == null) {
+                    createAverage(key, group.type(), group.windowEnd(), readings, now);
+                }
+            });
+            if (!pending.isEmpty()) {
+                deviceReadingRepository.deleteAllByIdIn(pending.stream().map(DeviceReading::getId).toList());
+            }
+        });
+    }
+
     private record Group(DeviceKey deviceKey, DeviceReadingType type, Instant windowEnd) { }
 
     public enum MergeOutcome { MERGED, RAW_STORED, DISCARDED_EDITED, DISCARDED_DELETED, DISCARDED_TOO_OLD }
@@ -160,10 +178,14 @@ public class DeviceHourlyAggregator {
 
     Object createAverage(DeviceKey deviceKey, DeviceReadingType type, Instant windowEnd,
                          List<DeviceReading> readings) {
+        return createAverage(deviceKey, type, windowEnd, readings, clock.instant());
+    }
+
+    private Object createAverage(DeviceKey deviceKey, DeviceReadingType type, Instant windowEnd,
+                                 List<DeviceReading> readings, Instant now) {
         if (readings.isEmpty()) {
             return null;
         }
-        Instant now = clock.instant();
         Instant measuredAt = windowEnd.isBefore(now) ? windowEnd : now;
         if (type == DeviceReadingType.FLOW) {
             BigDecimal averageHeight = average(readings.stream().map(DeviceReading::getValue).toList());

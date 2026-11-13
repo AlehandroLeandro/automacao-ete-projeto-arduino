@@ -37,6 +37,14 @@ public interface DeviceReadingRepository extends JpaRepository<DeviceReading, UU
             @Param("endAt") Instant endAt
     );
 
+    @Query("""
+            select reading from DeviceReading reading
+            where reading.deviceKey = :deviceKey
+            order by reading.measuredAt asc
+            """)
+    @EntityGraph(attributePaths = {"deviceKey", "deviceKey.station"})
+    List<DeviceReading> findAllByDeviceKeyOrderByMeasuredAtAsc(@Param("deviceKey") DeviceKey deviceKey);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("delete from DeviceReading reading where reading.deviceKey = :deviceKey")
