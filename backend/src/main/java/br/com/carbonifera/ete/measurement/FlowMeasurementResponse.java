@@ -11,7 +11,9 @@ public record FlowMeasurementResponse(
         BigDecimal flowLiters,
         Instant measuredAt,
         UUID createdById,
-        String createdByName
+        String createdByName,
+        String deviceName,
+        Integer sampleCount
 ) {
 
     public static FlowMeasurementResponse from(FlowMeasurement measurement) {
@@ -21,8 +23,12 @@ public record FlowMeasurementResponse(
                 measurement.getStation().getName(),
                 measurement.getFlowLiters(),
                 measurement.getMeasuredAt(),
-                measurement.getCreatedBy().getId(),
-                measurement.getCreatedBy().getName()
+                measurement.getCreatedBy() == null ? null : measurement.getCreatedBy().getId(),
+                measurement.getCreatedBy() == null
+                        ? "Equipamento: " + measurement.getDeviceName()
+                        : measurement.getCreatedBy().getName(),
+                measurement.getDeviceName(),
+                measurement.getSampleCount()
         );
     }
 }
