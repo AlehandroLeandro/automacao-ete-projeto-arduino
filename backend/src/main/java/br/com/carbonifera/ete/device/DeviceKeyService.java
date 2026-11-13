@@ -2,6 +2,9 @@ package br.com.carbonifera.ete.device;
 
 import br.com.carbonifera.ete.common.error.BusinessException;
 import br.com.carbonifera.ete.common.error.ResourceNotFoundException;
+import br.com.carbonifera.ete.audit.AuditFieldChangeDraft;
+import br.com.carbonifera.ete.audit.AuditRecordType;
+import br.com.carbonifera.ete.audit.AuditService;
 import br.com.carbonifera.ete.config.DeviceProperties;
 import br.com.carbonifera.ete.security.CurrentUserService;
 import br.com.carbonifera.ete.security.UserPrincipal;
@@ -30,10 +33,12 @@ public class DeviceKeyService {
     private final CurrentUserService currentUserService;
     private final DeviceProperties properties;
     private final Clock clock;
+    private final AuditService auditService;
 
     public DeviceKeyService(DeviceKeyRepository repository, DeviceKeyGenerator generator,
                             DeviceKeyCipher cipher, DeviceKeyHasher hasher, StationService stationService,
-                            CurrentUserService currentUserService, DeviceProperties properties, Clock clock) {
+                            CurrentUserService currentUserService, DeviceProperties properties, Clock clock,
+                            AuditService auditService) {
         this.repository = repository;
         this.generator = generator;
         this.cipher = cipher;
@@ -42,6 +47,7 @@ public class DeviceKeyService {
         this.currentUserService = currentUserService;
         this.properties = properties;
         this.clock = clock;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -89,6 +95,20 @@ public class DeviceKeyService {
         } catch (RuntimeException exception) {
             throw new IllegalStateException("Unable to retrieve device key");
         }
+    }
+
+    @Transactional
+    public DeviceKeyResponse setActive(UUID id, boolean active, UserPrincipal admin) {
+        DeviceKey key = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Device key not found"));
+        boolean previous = key.isActive();
+        if (active) key.activate(); else key.deactivate();
+        auditService.recordUpdate(AuditRecordType.DEVICE_KEY, id, key.getStation(),
+                currentUserService.requireUser(admin),
+                active ? "Device key reactivated" : "Device key deactivated",
+                List.of(new AuditFieldChangeDraft("active", "Active",
+                        Boolean.toString(previous), Boolean.toString(active))));
+        return DeviceKeyResponse.from(key, status(key.getLastSeenAt(), clock.instant(), properties.offlineMinutes()));
     }
 
     private DeviceKeyStatus status(Instant lastSeenAt, Instant now, long offlineMinutes) {

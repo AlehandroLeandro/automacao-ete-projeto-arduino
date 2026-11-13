@@ -34,7 +34,8 @@ class DeviceKeyConflictTest {
         when(repository.save(any(DeviceKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
         DeviceProperties properties = new DeviceProperties("test-secret-which-is-at-least-32-chars", 5, 10);
         service = new DeviceKeyService(repository, new DeviceKeyGenerator(), new DeviceKeyCipher(properties),
-                new DeviceKeyHasher(), stations, mock(CurrentUserService.class), properties, Clock.systemUTC());
+                new DeviceKeyHasher(), stations, mock(CurrentUserService.class), properties, Clock.systemUTC(),
+                mock(br.com.carbonifera.ete.audit.AuditService.class));
     }
 
     @Test

@@ -2,11 +2,15 @@ package br.com.carbonifera.ete.device;
 
 import br.com.carbonifera.ete.common.error.BusinessException;
 import br.com.carbonifera.ete.common.error.ResourceNotFoundException;
+import br.com.carbonifera.ete.audit.AuditRecordType;
+import br.com.carbonifera.ete.audit.AuditService;
 import br.com.carbonifera.ete.config.DeviceProperties;
 import br.com.carbonifera.ete.security.CurrentUserService;
 import br.com.carbonifera.ete.security.UserPrincipal;
 import br.com.carbonifera.ete.station.Station;
 import br.com.carbonifera.ete.station.StationService;
+import br.com.carbonifera.ete.measurement.FlowMeasurementRepository;
+import br.com.carbonifera.ete.measurement.PhMeasurementRepository;
 import br.com.carbonifera.ete.user.AppUser;
 import br.com.carbonifera.ete.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class DeviceKeyServiceTest {
@@ -38,6 +44,10 @@ class DeviceKeyServiceTest {
     @Mock StationService stationService;
     @Mock CurrentUserService currentUserService;
     @Mock UserPrincipal principal;
+    @Mock AuditService auditService;
+    @Mock DeviceHourlyAggregator hourlyAggregator;
+    @Mock FlowMeasurementRepository flowMeasurementRepository;
+    @Mock PhMeasurementRepository phMeasurementRepository;
 
     private DeviceKeyGenerator generator;
     private DeviceKeyCipher cipher;
@@ -53,7 +63,7 @@ class DeviceKeyServiceTest {
         cipher = new DeviceKeyCipher(properties);
         hasher = new DeviceKeyHasher();
         service = new DeviceKeyService(repository, generator, cipher, hasher, stationService,
-                currentUserService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                currentUserService, properties, Clock.fixed(NOW, ZoneOffset.UTC), auditService);
         station = new Station("ETE A", "ete-a");
         user = new AppUser("Admin", "admin", "hash", UserRole.ADMIN, false);
     }
@@ -137,6 +147,52 @@ class DeviceKeyServiceTest {
         when(repository.findById(KEY_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.secret(KEY_ID)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void deactivatesAndAuditsWithoutKeyMaterial() {
+        DeviceKey key = key("secret-value", null);
+        when(repository.findById(KEY_ID)).thenReturn(Optional.of(key));
+        when(currentUserService.requireUser(principal)).thenReturn(user);
+
+        service.setActive(KEY_ID, false, principal);
+
+        assertThat(key.isActive()).isFalse();
+        org.mockito.ArgumentCaptor<String> description = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(auditService).recordUpdate(org.mockito.ArgumentMatchers.eq(AuditRecordType.DEVICE_KEY),
+                org.mockito.ArgumentMatchers.eq(KEY_ID), org.mockito.ArgumentMatchers.eq(station),
+                org.mockito.ArgumentMatchers.eq(user), description.capture(), any());
+        assertThat(description.getValue()).hasSizeGreaterThanOrEqualTo(10)
+                .doesNotContain("secret-value", key.getValueHash());
+    }
+
+    @Test
+    void reactivatesAndAudits() {
+        DeviceKey key = key("secret-value", null);
+        key.deactivate();
+        when(repository.findById(KEY_ID)).thenReturn(Optional.of(key));
+        when(currentUserService.requireUser(principal)).thenReturn(user);
+
+        service.setActive(KEY_ID, true, principal);
+
+        assertThat(key.isActive()).isTrue();
+        verify(auditService).recordUpdate(org.mockito.ArgumentMatchers.eq(AuditRecordType.DEVICE_KEY),
+                org.mockito.ArgumentMatchers.eq(KEY_ID), org.mockito.ArgumentMatchers.eq(station),
+                org.mockito.ArgumentMatchers.eq(user), org.mockito.ArgumentMatchers.contains("reactivated"), any());
+    }
+
+    @Test
+    void missingKeyCannotBeActivated() {
+        when(repository.findById(KEY_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.setActive(KEY_ID, true, principal)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void missingKeyCannotBeDeactivated() {
+        when(repository.findById(KEY_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.setActive(KEY_ID, false, principal)).isInstanceOf(ResourceNotFoundException.class);
     }
 
     private DeviceKey repositorySavedKey() {
