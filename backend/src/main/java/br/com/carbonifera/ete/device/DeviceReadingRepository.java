@@ -1,6 +1,7 @@
 package br.com.carbonifera.ete.device;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,7 @@ public interface DeviceReadingRepository extends JpaRepository<DeviceReading, UU
             where reading.measuredAt < :hourStart
             order by reading.measuredAt asc
             """)
+    @EntityGraph(attributePaths = {"deviceKey", "deviceKey.station"})
     List<DeviceReading> findPendingBefore(@Param("hourStart") Instant hourStart);
 
     @Query("""

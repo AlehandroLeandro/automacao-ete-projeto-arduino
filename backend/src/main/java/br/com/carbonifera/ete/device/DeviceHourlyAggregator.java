@@ -7,6 +7,11 @@ import br.com.carbonifera.ete.measurement.PhMeasurement;
 import br.com.carbonifera.ete.measurement.PhMeasurementRepository;
 import br.com.carbonifera.ete.measurement.PhWaterType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -14,20 +19,55 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class DeviceHourlyAggregator {
 
+    private static final Logger log = LoggerFactory.getLogger(DeviceHourlyAggregator.class);
+
     private final FlowMeasurementRepository flowMeasurementRepository;
     private final PhMeasurementRepository phMeasurementRepository;
     private final Clock clock;
+    private final DeviceReadingRepository deviceReadingRepository;
+    private final TransactionTemplate groupTransaction;
 
-    public DeviceHourlyAggregator(FlowMeasurementRepository flowMeasurementRepository,
-                                  PhMeasurementRepository phMeasurementRepository, Clock clock) {
+    public DeviceHourlyAggregator(DeviceReadingRepository deviceReadingRepository,
+                                  FlowMeasurementRepository flowMeasurementRepository,
+                                  PhMeasurementRepository phMeasurementRepository, Clock clock,
+                                  PlatformTransactionManager transactionManager) {
+        this.deviceReadingRepository = deviceReadingRepository;
         this.flowMeasurementRepository = flowMeasurementRepository;
         this.phMeasurementRepository = phMeasurementRepository;
         this.clock = clock;
+        this.groupTransaction = new TransactionTemplate(transactionManager);
+        this.groupTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
+
+    public void aggregateClosedHours(Instant now) {
+        Instant currentHourStart = ZonedDateTime.ofInstant(now, SchedulingConfig.APP_ZONE)
+                .withMinute(0).withSecond(0).withNano(0).toInstant();
+        Map<Group, List<DeviceReading>> groups = deviceReadingRepository.findPendingBefore(currentHourStart).stream()
+                .collect(Collectors.groupingBy(reading -> new Group(reading.getDeviceKey(), reading.getType(),
+                        windowEnd(reading.getMeasuredAt())), LinkedHashMap::new, Collectors.toList()));
+
+        groups.forEach((group, readings) -> {
+            try {
+                groupTransaction.executeWithoutResult(status -> {
+                    createAverage(group.deviceKey(), group.type(), group.windowEnd(), readings);
+                    deviceReadingRepository.deleteAllByIdIn(readings.stream().map(DeviceReading::getId).toList());
+                });
+            } catch (RuntimeException exception) {
+                log.error("Failed to aggregate device readings for key {}, type {}, hour {}",
+                        group.deviceKey().getId(), group.type(), group.windowEnd(), exception);
+            }
+        });
+    }
+
+    private record Group(DeviceKey deviceKey, DeviceReadingType type, Instant windowEnd) { }
 
     Instant windowEnd(Instant measuredAt) {
         return ZonedDateTime.ofInstant(measuredAt, SchedulingConfig.APP_ZONE)
