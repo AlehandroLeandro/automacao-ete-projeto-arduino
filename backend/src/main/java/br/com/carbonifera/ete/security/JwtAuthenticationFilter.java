@@ -1,10 +1,13 @@
 package br.com.carbonifera.ete.security;
 
+import br.com.carbonifera.ete.device.DeviceKey;
+import br.com.carbonifera.ete.device.DeviceKeyRepository;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,10 +22,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
+    private final DeviceKeyRepository deviceKeyRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, AppUserDetailsService userDetailsService) {
+    @Autowired
+    public JwtAuthenticationFilter(JwtService jwtService, AppUserDetailsService userDetailsService,
+                                   DeviceKeyRepository deviceKeyRepository) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.deviceKeyRepository = deviceKeyRepository;
+    }
+
+    public JwtAuthenticationFilter(JwtService jwtService, AppUserDetailsService userDetailsService) {
+        this(jwtService, userDetailsService, null);
     }
 
     @Override
@@ -39,21 +50,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(HttpServletRequest request, String token) {
         try {
+            if (jwtService.isDeviceToken(token)) {
+                if (deviceKeyRepository == null) {
+                    return;
+                }
+                DeviceKey deviceKey = deviceKeyRepository.findById(jwtService.deviceKeyId(token)).orElse(null);
+                if (deviceKey == null || !deviceKey.isActive()) {
+                    return;
+                }
+                UserDetails devicePrincipal = new DevicePrincipal(deviceKey.getId(),
+                        deviceKey.getStation().getId(), deviceKey.getName());
+                setAuthentication(request, devicePrincipal);
+                return;
+            }
             if (!jwtService.isAccessToken(token)) {
                 return;
             }
             String username = jwtService.subject(token);
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.authenticated(
-                    userDetails,
-                    null,
-                    userDetails.getAuthorities()
-            );
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            setAuthentication(request, userDetails);
         } catch (JwtException | IllegalArgumentException ignored) {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private void setAuthentication(HttpServletRequest request, UserDetails principal) {
+        UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.authenticated(
+                principal, null, principal.getAuthorities());
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
     private String resolveToken(HttpServletRequest request) {
