@@ -7,6 +7,8 @@ import br.com.carbonifera.ete.security.CurrentUserService;
 import br.com.carbonifera.ete.security.UserPrincipal;
 import br.com.carbonifera.ete.station.Station;
 import br.com.carbonifera.ete.station.StationService;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +53,22 @@ public class DeviceKeyService {
         }
 
         String value = generator.generate();
-        DeviceKey key = repository.save(new DeviceKey(station, name, cipher.encrypt(value),
-                hasher.hash(value), currentUserService.requireUser(principal)));
+        DeviceKey key;
+        try {
+            key = repository.save(new DeviceKey(station, name, cipher.encrypt(value),
+                    hasher.hash(value), currentUserService.requireUser(principal)));
+            // Detect the constraint before returning; the escaping exception rolls back this transaction.
+            repository.flush();
+        } catch (DataIntegrityViolationException exception) {
+            for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+                if (cause instanceof ConstraintViolationException violation
+                        && "23505".equals(violation.getSQLState())
+                        && isStationNameConstraint(violation.getConstraintName())) {
+                    throw new BusinessException("Device key name already exists", HttpStatus.CONFLICT);
+                }
+            }
+            throw exception;
+        }
         return new DeviceKeyCreatedResponse(DeviceKeyResponse.from(key, status(key.getLastSeenAt(), clock.instant(), properties.offlineMinutes())), value);
     }
 
@@ -79,5 +95,12 @@ public class DeviceKeyService {
         if (lastSeenAt == null) return DeviceKeyStatus.NEVER;
         return Duration.between(lastSeenAt, now).compareTo(Duration.ofMinutes(offlineMinutes)) <= 0
                 ? DeviceKeyStatus.ONLINE : DeviceKeyStatus.OFFLINE;
+    }
+
+    private boolean isStationNameConstraint(String constraintName) {
+        if (constraintName == null) return false;
+        // H2 reports the backing index followed by its column/value description.
+        String identifier = constraintName.split(" ", 2)[0];
+        return identifier.matches("(?i)(?:[a-z0-9_]+\\.)?uk_device_key_station_name(?:_index_[0-9]+)?");
     }
 }
