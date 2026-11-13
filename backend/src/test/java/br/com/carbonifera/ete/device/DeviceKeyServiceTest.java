@@ -63,7 +63,8 @@ class DeviceKeyServiceTest {
         cipher = new DeviceKeyCipher(properties);
         hasher = new DeviceKeyHasher();
         service = new DeviceKeyService(repository, generator, cipher, hasher, stationService,
-                currentUserService, properties, Clock.fixed(NOW, ZoneOffset.UTC), auditService);
+                currentUserService, properties, Clock.fixed(NOW, ZoneOffset.UTC), auditService, hourlyAggregator,
+                flowMeasurementRepository, phMeasurementRepository);
         station = new Station("ETE A", "ete-a");
         user = new AppUser("Admin", "admin", "hash", UserRole.ADMIN, false);
     }
@@ -193,6 +194,52 @@ class DeviceKeyServiceTest {
         when(repository.findById(KEY_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.setActive(KEY_ID, false, principal)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void deleteAggregatesDetachesAuditsThenDeletesKey() {
+        DeviceKey key = key("secret-value", null);
+        when(repository.lockById(KEY_ID)).thenReturn(Optional.of(key));
+        when(currentUserService.requireUser(principal)).thenReturn(user);
+
+        service.delete(KEY_ID, principal);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(hourlyAggregator, flowMeasurementRepository,
+                phMeasurementRepository, auditService, repository);
+        order.verify(hourlyAggregator).aggregateKeyIncludingPartial(key, NOW);
+        order.verify(flowMeasurementRepository).clearDeviceKey(key);
+        order.verify(phMeasurementRepository).clearDeviceKey(key);
+        order.verify(auditService).recordDelete(AuditRecordType.DEVICE_KEY, KEY_ID, station, user, "Device key deleted");
+        order.verify(repository).delete(key);
+        assertThat(key.getName()).isEqualTo("Sensor");
+        assertThat(key.getEncryptedValue()).isEqualTo("secret-value");
+    }
+
+    @Test
+    void deleteAuditDescriptionDoesNotContainKeyValueOrHash() {
+        DeviceKey key = key("secret-value", null);
+        when(repository.lockById(KEY_ID)).thenReturn(Optional.of(key));
+        when(currentUserService.requireUser(principal)).thenReturn(user);
+
+        service.delete(KEY_ID, principal);
+
+        verify(auditService).recordDelete(AuditRecordType.DEVICE_KEY, KEY_ID, station, user, "Device key deleted");
+    }
+
+    @Test
+    void missingKeyCannotBeDeleted() {
+        when(repository.lockById(KEY_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(KEY_ID, principal)).isInstanceOf(ResourceNotFoundException.class);
+        org.mockito.Mockito.verifyNoInteractions(hourlyAggregator, flowMeasurementRepository,
+                phMeasurementRepository, auditService);
+    }
+
+    @Test
+    void deleteRunsInTransaction() throws NoSuchMethodException {
+        var method = DeviceKeyService.class.getMethod("delete", UUID.class, UserPrincipal.class);
+
+        assertThat(method.getAnnotation(org.springframework.transaction.annotation.Transactional.class)).isNotNull();
     }
 
     private DeviceKey repositorySavedKey() {

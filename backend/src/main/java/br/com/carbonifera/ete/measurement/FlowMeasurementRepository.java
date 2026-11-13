@@ -3,6 +3,7 @@ package br.com.carbonifera.ete.measurement;
 import br.com.carbonifera.ete.station.Station;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -114,4 +115,8 @@ public interface FlowMeasurementRepository extends JpaRepository<FlowMeasurement
             br.com.carbonifera.ete.device.DeviceKey deviceKey,
             Instant deviceWindowEnd
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update FlowMeasurement measurement set measurement.deviceKey = null where measurement.deviceKey = :deviceKey")
+    int clearDeviceKey(@Param("deviceKey") br.com.carbonifera.ete.device.DeviceKey deviceKey);
 }

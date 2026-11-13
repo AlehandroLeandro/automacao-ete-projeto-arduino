@@ -8,6 +8,8 @@ import br.com.carbonifera.ete.audit.AuditService;
 import br.com.carbonifera.ete.config.DeviceProperties;
 import br.com.carbonifera.ete.security.CurrentUserService;
 import br.com.carbonifera.ete.security.UserPrincipal;
+import br.com.carbonifera.ete.measurement.FlowMeasurementRepository;
+import br.com.carbonifera.ete.measurement.PhMeasurementRepository;
 import br.com.carbonifera.ete.station.Station;
 import br.com.carbonifera.ete.station.StationService;
 import org.hibernate.exception.ConstraintViolationException;
@@ -34,11 +36,16 @@ public class DeviceKeyService {
     private final DeviceProperties properties;
     private final Clock clock;
     private final AuditService auditService;
+    private final DeviceHourlyAggregator hourlyAggregator;
+    private final FlowMeasurementRepository flowMeasurementRepository;
+    private final PhMeasurementRepository phMeasurementRepository;
 
     public DeviceKeyService(DeviceKeyRepository repository, DeviceKeyGenerator generator,
                             DeviceKeyCipher cipher, DeviceKeyHasher hasher, StationService stationService,
                             CurrentUserService currentUserService, DeviceProperties properties, Clock clock,
-                            AuditService auditService) {
+                            AuditService auditService, DeviceHourlyAggregator hourlyAggregator,
+                            FlowMeasurementRepository flowMeasurementRepository,
+                            PhMeasurementRepository phMeasurementRepository) {
         this.repository = repository;
         this.generator = generator;
         this.cipher = cipher;
@@ -48,6 +55,9 @@ public class DeviceKeyService {
         this.properties = properties;
         this.clock = clock;
         this.auditService = auditService;
+        this.hourlyAggregator = hourlyAggregator;
+        this.flowMeasurementRepository = flowMeasurementRepository;
+        this.phMeasurementRepository = phMeasurementRepository;
     }
 
     @Transactional
@@ -109,6 +119,18 @@ public class DeviceKeyService {
                 List.of(new AuditFieldChangeDraft("active", "Active",
                         Boolean.toString(previous), Boolean.toString(active))));
         return DeviceKeyResponse.from(key, status(key.getLastSeenAt(), clock.instant(), properties.offlineMinutes()));
+    }
+
+    @Transactional
+    public void delete(UUID id, UserPrincipal admin) {
+        DeviceKey key = repository.lockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Device key not found"));
+        hourlyAggregator.aggregateKeyIncludingPartial(key, clock.instant());
+        flowMeasurementRepository.clearDeviceKey(key);
+        phMeasurementRepository.clearDeviceKey(key);
+        auditService.recordDelete(AuditRecordType.DEVICE_KEY, id, key.getStation(),
+                currentUserService.requireUser(admin), "Device key deleted");
+        repository.delete(key);
     }
 
     private DeviceKeyStatus status(Instant lastSeenAt, Instant now, long offlineMinutes) {
