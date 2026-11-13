@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class NotificationRecipientResolver {
@@ -34,6 +36,15 @@ public class NotificationRecipientResolver {
         List<AppUser> recipients = new ArrayList<>(activeSupervisors());
         recipients.addAll(userRepository.findAllByRoleAndStationAndActiveTrue(UserRole.VIEWER, station));
         return recipients;
+    }
+
+    @Transactional(readOnly = true)
+    public List<AppUser> deviceAlertRecipients(Station station) {
+        LinkedHashMap<UUID, AppUser> recipients = new LinkedHashMap<>();
+        activeSupervisorsAndAdmins().forEach(user -> recipients.putIfAbsent(user.getId(), user));
+        userRepository.findAllByRoleAndStationAndActiveTrue(UserRole.OPERATOR, station)
+                .forEach(user -> recipients.putIfAbsent(user.getId(), user));
+        return new ArrayList<>(recipients.values());
     }
 
     @Transactional(readOnly = true)

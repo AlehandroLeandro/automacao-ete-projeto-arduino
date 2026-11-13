@@ -63,6 +63,50 @@ class NotificationRecipientResolverTest {
         verify(userRepository).findAllByRoleAndActiveTrue(UserRole.OPERATOR);
     }
 
+    @Test
+    void deviceNotificationTypesAreAvailable() {
+        assertThat(NotificationType.values()).contains(
+                NotificationType.DEVICE_OFFLINE_ALERT,
+                NotificationType.DEVICE_BACK_ONLINE);
+    }
+
+    @Test
+    void deviceAlertRecipientsIncludeActiveAdminsSupervisorsAndStationOperatorsOnce() {
+        Station station = mock(Station.class);
+        AppUser admin = user(UserRole.ADMIN);
+        AppUser supervisor = user(UserRole.SUPERVISOR);
+        AppUser operator = user(UserRole.OPERATOR);
+        when(userRepository.findAllByRoleInAndActiveTrue(List.of(UserRole.SUPERVISOR, UserRole.ADMIN)))
+                .thenReturn(List.of(admin, supervisor));
+        when(userRepository.findAllByRoleAndStationAndActiveTrue(UserRole.OPERATOR, station))
+                .thenReturn(List.of(operator, admin));
+
+        List<AppUser> recipients = resolver.deviceAlertRecipients(station);
+
+        assertThat(recipients).containsExactly(admin, supervisor, operator);
+    }
+
+    @Test
+    void deviceAlertRecipientsDoNotIncludeViewersInactiveUsersOrOtherStationOperators() {
+        Station station = mock(Station.class);
+        AppUser admin = user(UserRole.ADMIN);
+        AppUser supervisor = user(UserRole.SUPERVISOR);
+        AppUser stationOperator = user(UserRole.OPERATOR);
+        AppUser viewer = user(UserRole.VIEWER);
+        AppUser inactiveOperator = user(UserRole.OPERATOR);
+        inactiveOperator.setActive(false);
+        AppUser otherStationOperator = user(UserRole.OPERATOR);
+        when(userRepository.findAllByRoleInAndActiveTrue(List.of(UserRole.SUPERVISOR, UserRole.ADMIN)))
+                .thenReturn(List.of(admin, supervisor));
+        when(userRepository.findAllByRoleAndStationAndActiveTrue(UserRole.OPERATOR, station))
+                .thenReturn(List.of(stationOperator));
+
+        List<AppUser> recipients = resolver.deviceAlertRecipients(station);
+
+        assertThat(recipients).containsExactly(admin, supervisor, stationOperator)
+                .doesNotContain(viewer, inactiveOperator, otherStationOperator);
+    }
+
     private AppUser user(UserRole role) {
         AppUser user = new AppUser("User", role.name().toLowerCase(), "hash", role, false);
         ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
