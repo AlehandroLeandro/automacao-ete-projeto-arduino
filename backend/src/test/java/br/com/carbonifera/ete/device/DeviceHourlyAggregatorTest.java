@@ -311,7 +311,7 @@ class DeviceHourlyAggregatorTest {
         Instant originalTime = Instant.parse("2026-11-13T18:00:00Z");
         PhMeasurement existing = PhMeasurement.fromDevice(key.getStation(), PhWaterType.RAW, new BigDecimal("7.00"),
                 originalTime, key, "Bomba 1", aggregator.windowEnd(measuredAt), 60);
-        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+        when(phRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
                 aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
 
         assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
@@ -328,7 +328,7 @@ class DeviceHourlyAggregatorTest {
         Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
         PhMeasurement existing = phRecord(measuredAt);
         setRecordId(existing);
-        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+        when(phRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
                 aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
         when(auditEvents.existsByRecordTypeAndRecordIdAndAction(AuditRecordType.PH_MEASUREMENT,
                 existing.getId(), AuditAction.UPDATED)).thenReturn(true);
@@ -345,7 +345,7 @@ class DeviceHourlyAggregatorTest {
         Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
         PhMeasurement existing = phRecord(measuredAt);
         existing.softDelete(null);
-        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+        when(phRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
                 aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
 
         assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
@@ -370,7 +370,7 @@ class DeviceHourlyAggregatorTest {
     @Test
     void storesLateReadingRawWhenClosedHourHasNoAverage() {
         Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
-        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+        when(phRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
                 aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.empty());
         when(readingRepository.save(any(DeviceReading.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -405,7 +405,7 @@ class DeviceHourlyAggregatorTest {
         Instant measuredAt = Instant.parse("2026-11-13T17:30:00Z");
         PhMeasurement existing = PhMeasurement.fromDevice(key.getStation(), PhWaterType.TREATED, new BigDecimal("6.00"),
                 Instant.parse("2026-11-13T18:00:00Z"), key, "Bomba 1", aggregator.windowEnd(measuredAt), 2);
-        when(phRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.TREATED,
+        when(phRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.TREATED,
                 aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.of(existing));
 
         assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_TREATED, measuredAt, new BigDecimal("7.00"), null, NOW))
@@ -556,6 +556,71 @@ class DeviceHourlyAggregatorTest {
         PhMeasurement preserved = databasePh.findById(initial.getId()).orElseThrow();
         assertThat(preserved.getPh()).isEqualByComparingTo("9.00");
         assertThat(preserved.getSampleCount()).isEqualTo(2);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void preservesRawWindowAfterHumanChangesItsTypeWithTreatedWindowPresent() {
+        assertTypeEditKeepsWindowIdentity(PhWaterType.RAW, DeviceReadingType.PH_RAW,
+                PhWaterType.TREATED, DeviceReadingType.PH_TREATED);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void preservesTreatedWindowAfterHumanChangesItsTypeWithRawWindowPresent() {
+        assertTypeEditKeepsWindowIdentity(PhWaterType.TREATED, DeviceReadingType.PH_TREATED,
+                PhWaterType.RAW, DeviceReadingType.PH_RAW);
+    }
+
+    private void assertTypeEditKeepsWindowIdentity(PhWaterType originalType, DeviceReadingType originalStream,
+                                                  PhWaterType otherType, DeviceReadingType otherStream) {
+        DeviceKey persistedKey = seedKey("type-edit-" + originalType);
+        Instant at = NOW.minusSeconds(1800);
+        Instant end = aggregator.windowEnd(at);
+        PhMeasurement original = databasePh.saveAndFlush(PhMeasurement.fromDevice(persistedKey.getStation(),
+                originalType, new BigDecimal("6.00"), end, persistedKey, "Sensor", end, 2));
+        PhMeasurement other = databasePh.saveAndFlush(PhMeasurement.fromDevice(persistedKey.getStation(),
+                otherType, new BigDecimal("7.00"), end, persistedKey, "Sensor", end, 2));
+        AppUser user = users.findAll().getFirst();
+        new org.springframework.transaction.support.TransactionTemplate(databaseTransactions).executeWithoutResult(status -> {
+            PhMeasurement edited = databasePh.findByIdAndDeletedFalse(original.getId()).orElseThrow();
+            edited.update(persistedKey.getStation(), otherType, new BigDecimal("9.00"), end.minusSeconds(60));
+            databaseAudit.save(new br.com.carbonifera.ete.audit.AuditEvent(
+                    AuditRecordType.PH_MEASUREMENT, AuditAction.UPDATED, edited.getId(),
+                    persistedKey.getStation(), user, "Human type correction"));
+        });
+
+        assertThat(databaseAggregator.mergeLate(persistedKey, originalStream, at,
+                new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.DISCARDED_EDITED);
+        assertThat(databaseReadings.findAll().stream()
+                .filter(row -> row.getDeviceKey().getId().equals(persistedKey.getId()))).isEmpty();
+        assertThat(databaseAggregator.mergeLate(persistedKey, otherStream, at,
+                new BigDecimal("8.00"), null, NOW)).isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+        DeviceReading discarded = databaseReadings.saveAndFlush(new DeviceReading(persistedKey, originalStream,
+                new BigDecimal("8.00"), null, at));
+        DeviceReading merged = databaseReadings.saveAndFlush(new DeviceReading(persistedKey, otherStream,
+                new BigDecimal("9.00"), null, at));
+
+        databaseAggregator.aggregateClosedHours(NOW);
+        databaseAggregator.aggregateClosedHours(NOW);
+
+        PhMeasurement preserved = databasePh.findById(original.getId()).orElseThrow();
+        assertThat(preserved.getType()).isEqualTo(otherType);
+        assertThat(preserved.getDeviceWaterType()).isEqualTo(originalType);
+        assertThat(preserved.getPh()).isEqualByComparingTo("9.00");
+        assertThat(preserved.getSampleCount()).isEqualTo(2);
+        assertThat(preserved.getMeasuredAt()).isEqualTo(end.minusSeconds(60));
+        assertThat(preserved.getDeviceWindowEnd()).isEqualTo(end);
+        PhMeasurement otherWindow = databasePh.findById(other.getId()).orElseThrow();
+        assertThat(otherWindow.getType()).isEqualTo(otherType);
+        assertThat(otherWindow.getDeviceWaterType()).isEqualTo(otherType);
+        assertThat(otherWindow.getPh()).isEqualByComparingTo("7.75");
+        assertThat(otherWindow.getSampleCount()).isEqualTo(4);
+        assertThat(databasePh.findAll().stream()
+                .filter(row -> row.getDeviceKey().getId().equals(persistedKey.getId()))).hasSize(2);
+        assertThat(databaseReadings.findById(discarded.getId())).isEmpty();
+        assertThat(databaseReadings.findById(merged.getId())).isEmpty();
     }
 
     private PhMeasurement phRecord(Instant measuredAt) {

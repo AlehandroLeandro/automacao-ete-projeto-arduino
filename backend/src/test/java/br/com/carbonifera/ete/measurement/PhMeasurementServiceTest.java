@@ -207,6 +207,29 @@ class PhMeasurementServiceTest {
     }
 
     @Test
+    void updateDeviceTypeKeepsOriginalWindowIdentityAndAuditsTheChange() {
+        PhMeasurement measurement = PhMeasurement.fromDevice(station, PhWaterType.RAW, new BigDecimal("7.10"),
+                OUTSIDE_WINDOW_TIME, null, "Sensor", OUTSIDE_WINDOW_TIME, 60);
+        ReflectionTestUtils.setField(measurement, "id", UUID.randomUUID());
+        UserPrincipal adminPrincipal = UserPrincipal.from(admin);
+        when(repository.findByIdAndDeletedFalse(measurement.getId())).thenReturn(Optional.of(measurement));
+        doNothing().when(stationScopeService).requireWritableStation(station, adminPrincipal);
+        when(stationScopeService.requireWritableStation(station.getId(), adminPrincipal)).thenReturn(station);
+        when(currentUserService.requireUser(adminPrincipal)).thenReturn(admin);
+
+        PhMeasurementResponse response = service.update(measurement.getId(), new PhMeasurementUpdateRequest(
+                station.getId(), PhWaterType.TREATED, new BigDecimal("7.10"), OUTSIDE_WINDOW_TIME,
+                "Correcao do tipo de pH"), adminPrincipal);
+
+        assertThat(response.type()).isEqualTo(PhWaterType.TREATED);
+        assertThat(measurement.getDeviceWaterType()).isEqualTo(PhWaterType.RAW);
+        assertThat(measurement.getDeviceWindowEnd()).isEqualTo(OUTSIDE_WINDOW_TIME);
+        assertThat(measurement.getSampleCount()).isEqualTo(60);
+        verify(auditService).recordUpdate(AuditRecordType.PH_MEASUREMENT, measurement.getId(), station, admin,
+                "Correcao do tipo de pH", List.of(new AuditFieldChangeDraft("type", "Tipo", "RAW", "TREATED")));
+    }
+
+    @Test
     void updateWithoutRealChangeFailsWithoutAuditLog() {
         PhMeasurement measurement = phMeasurement(new BigDecimal("7.10"));
         PhMeasurementUpdateRequest request = new PhMeasurementUpdateRequest(

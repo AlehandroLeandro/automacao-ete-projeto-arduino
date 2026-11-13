@@ -126,9 +126,9 @@ public interface PhMeasurementRepository extends JpaRepository<PhMeasurement, UU
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<PhMeasurement> findByDeviceKeyAndTypeAndDeviceWindowEnd(
+    Optional<PhMeasurement> findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(
             br.com.carbonifera.ete.device.DeviceKey deviceKey,
-            PhWaterType type,
+            PhWaterType deviceWaterType,
             Instant deviceWindowEnd
     );
 }

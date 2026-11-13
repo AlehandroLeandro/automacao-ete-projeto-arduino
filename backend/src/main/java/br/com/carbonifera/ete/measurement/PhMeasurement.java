@@ -23,7 +23,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "ph_measurements", uniqueConstraints = @UniqueConstraint(
-        name = "uk_ph_device_type_window", columnNames = {"device_key_id", "type", "device_window_end"}))
+        name = "uk_ph_device_type_window", columnNames = {"device_key_id", "device_water_type", "device_window_end"}))
 public class PhMeasurement {
 
     @Id
@@ -61,6 +61,12 @@ public class PhMeasurement {
     @Column(name = "device_window_end", updatable = false)
     private Instant deviceWindowEnd;
 
+    // SPEC_DEVIATION: window uniqueness uses the immutable source type instead of editable type.
+    // Reason: human type corrections must not lose or collide with another stream's window.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "device_water_type", length = 20, updatable = false)
+    private PhWaterType deviceWaterType;
+
     @Column(name = "sample_count")
     private Integer sampleCount;
 
@@ -94,6 +100,7 @@ public class PhMeasurement {
         measurement.deviceKey = deviceKey;
         measurement.deviceName = deviceName;
         measurement.deviceWindowEnd = deviceWindowEnd;
+        measurement.deviceWaterType = type;
         measurement.sampleCount = sampleCount;
         return measurement;
     }
@@ -152,6 +159,8 @@ public class PhMeasurement {
     public String getDeviceName() { return deviceName; }
 
     public Instant getDeviceWindowEnd() { return deviceWindowEnd; }
+
+    public PhWaterType getDeviceWaterType() { return deviceWaterType; }
 
     public Integer getSampleCount() { return sampleCount; }
 

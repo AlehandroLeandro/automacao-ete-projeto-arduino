@@ -131,7 +131,7 @@ public class DeviceHourlyAggregator {
         }
 
         PhWaterType waterType = type == DeviceReadingType.PH_RAW ? PhWaterType.RAW : PhWaterType.TREATED;
-        Optional<PhMeasurement> existing = phMeasurementRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, waterType, end);
+        Optional<PhMeasurement> existing = phMeasurementRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, waterType, end);
         if (existing.isEmpty()) return null;
         PhMeasurement measurement = existing.get();
         if (measurement.isDeleted()) return MergeOutcome.DISCARDED_DELETED;
