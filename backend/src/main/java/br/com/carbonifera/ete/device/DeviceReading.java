@@ -36,7 +36,7 @@ public class DeviceReading {
     @Column(nullable = false, length = 20)
     private DeviceReadingType type;
 
-    @Column(nullable = false, precision = 14, scale = 2)
+    @Column(name = "reading_value", nullable = false, precision = 14, scale = 2)
     private BigDecimal value;
 
     @Column(precision = 14, scale = 2)
