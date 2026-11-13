@@ -2,6 +2,7 @@ package br.com.carbonifera.ete.lime;
 
 import br.com.carbonifera.ete.security.AppUserDetailsService;
 import br.com.carbonifera.ete.security.JwtService;
+import br.com.carbonifera.ete.device.DeviceKeyRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -23,6 +24,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = LimeController.class, properties = "server.port=0")
 class LimeControllerTest {
     @Autowired MockMvc mockMvc;
+    @MockBean
+    private DeviceKeyRepository deviceKeyRepository;
+
     @MockBean LimeService service;
     @MockBean JwtService jwtService;
     @MockBean AppUserDetailsService userDetailsService;

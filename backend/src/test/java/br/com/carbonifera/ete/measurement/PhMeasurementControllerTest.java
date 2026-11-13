@@ -2,6 +2,7 @@ package br.com.carbonifera.ete.measurement;
 
 import br.com.carbonifera.ete.security.UserPrincipal;
 import br.com.carbonifera.ete.security.JwtService;
+import br.com.carbonifera.ete.device.DeviceKeyRepository;
 import br.com.carbonifera.ete.security.AppUserDetailsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = PhMeasurementController.class, properties = "server.port=0")
 class PhMeasurementControllerTest {
     @Autowired MockMvc mockMvc;
+    @MockBean
+    private DeviceKeyRepository deviceKeyRepository;
+
     @MockBean PhMeasurementService service;
     @MockBean JwtService jwtService;
     @MockBean AppUserDetailsService userDetailsService;

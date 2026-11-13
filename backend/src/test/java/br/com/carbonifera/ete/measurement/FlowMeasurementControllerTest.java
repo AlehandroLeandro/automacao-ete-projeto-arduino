@@ -3,6 +3,7 @@ package br.com.carbonifera.ete.measurement;
 import br.com.carbonifera.ete.common.error.GlobalExceptionHandler;
 import br.com.carbonifera.ete.security.AppUserDetailsService;
 import br.com.carbonifera.ete.security.JwtService;
+import br.com.carbonifera.ete.device.DeviceKeyRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,9 @@ class FlowMeasurementControllerTest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @MockBean
+    private DeviceKeyRepository deviceKeyRepository;
 
     @MockBean
     FlowMeasurementService service;

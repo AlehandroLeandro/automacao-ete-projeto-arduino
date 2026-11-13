@@ -48,6 +48,8 @@ class DeviceKeyCreationIntegrationTest {
     @Autowired DeviceKeyRepository repository;
     @Autowired EntityManager entityManager;
     @Autowired PlatformTransactionManager transactionManager;
+    @MockBean br.com.carbonifera.ete.audit.AuditService auditService;
+    @MockBean DeviceHourlyAggregator hourlyAggregator;
     @MockBean StationService stationService;
     @MockBean CurrentUserService currentUserService;
     @MockBean DeviceKeyGenerator generator;

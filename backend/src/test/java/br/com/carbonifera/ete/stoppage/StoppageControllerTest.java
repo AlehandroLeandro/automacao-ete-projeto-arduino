@@ -5,6 +5,7 @@ import br.com.carbonifera.ete.common.error.GlobalExceptionHandler;
 import br.com.carbonifera.ete.security.UserPrincipal;
 import br.com.carbonifera.ete.security.AppUserDetailsService;
 import br.com.carbonifera.ete.security.JwtService;
+import br.com.carbonifera.ete.device.DeviceKeyRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -36,6 +37,9 @@ class StoppageControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private DeviceKeyRepository deviceKeyRepository;
 
     @MockBean
     private StoppageService service;
