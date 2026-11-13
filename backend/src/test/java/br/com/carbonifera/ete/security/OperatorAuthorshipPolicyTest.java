@@ -55,6 +55,14 @@ class OperatorAuthorshipPolicyTest {
     }
 
     @Test
+    void assertOwnedPassesForOperatorDeviceAuthoredRecord() {
+        AppUser operator = user(UserRole.OPERATOR);
+
+        assertThatCode(() -> policy.assertOwned(UserPrincipal.from(operator), null, NOT_FOUND_MESSAGE))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void assertOwnedThrowsNotFoundWithDomainMessageForOperatorForeignRecord() {
         AppUser operator = user(UserRole.OPERATOR);
         AppUser otherOperator = user(UserRole.OPERATOR);

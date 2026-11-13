@@ -32,7 +32,7 @@ public class OperatorAuthorshipPolicy {
         if (author.isEmpty()) {
             return;
         }
-        if (createdBy == null || !author.get().equals(createdBy.getId())) {
+        if (createdBy != null && !author.get().equals(createdBy.getId())) {
             throw new ResourceNotFoundException(notFoundMessage);
         }
     }
