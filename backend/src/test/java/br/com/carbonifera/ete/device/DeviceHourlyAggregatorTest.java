@@ -55,6 +55,7 @@ class DeviceHourlyAggregatorTest {
     private PlatformTransactionManager transactionManager;
     private DeviceHourlyAggregator aggregator;
     private DeviceKey key;
+    private final java.util.Map<UUID, DeviceReading> pendingReadings = new java.util.HashMap<>();
     @Autowired private DeviceHourlyAggregator databaseAggregator;
     @Autowired private DeviceReadingRepository databaseReadings;
     @Autowired private DeviceKeyRepository keys;
@@ -62,18 +63,28 @@ class DeviceHourlyAggregatorTest {
     @Autowired private br.com.carbonifera.ete.user.AppUserRepository users;
     @Autowired private FlowMeasurementRepository databaseFlows;
     @Autowired private PhMeasurementRepository databasePh;
+    @Autowired private AuditEventRepository databaseAudit;
+    @Autowired private PlatformTransactionManager databaseTransactions;
 
     @BeforeEach
     void setUp() {
         flowRepository = mock(FlowMeasurementRepository.class);
         phRepository = mock(PhMeasurementRepository.class);
         readingRepository = mock(DeviceReadingRepository.class);
+        pendingReadings.clear();
+        when(readingRepository.findAllById(any())).thenAnswer(invocation -> {
+            List<DeviceReading> result = new ArrayList<>();
+            for (UUID id : (Iterable<UUID>) invocation.getArgument(0)) {
+                if (pendingReadings.containsKey(id)) result.add(pendingReadings.get(id));
+            }
+            return result;
+        });
         auditEvents = mock(AuditEventRepository.class);
         transactionManager = mock(PlatformTransactionManager.class);
         when(flowRepository.save(any(FlowMeasurement.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(phRepository.save(any(PhMeasurement.class))).thenAnswer(invocation -> invocation.getArgument(0));
         aggregator = new DeviceHourlyAggregator(readingRepository, flowRepository, phRepository, auditEvents,
-                Clock.fixed(NOW, ZoneId.of("America/Sao_Paulo")), transactionManager);
+                Clock.fixed(NOW, ZoneId.of("America/Sao_Paulo")), transactionManager, mock(DeviceKeyRepository.class));
         Station station = new Station("Station", "station");
         key = mock(DeviceKey.class);
         when(key.getName()).thenReturn("Bomba 1");
@@ -280,7 +291,7 @@ class DeviceHourlyAggregatorTest {
         Instant succeededAt = now.minusSeconds(1800);
         Instant failedEnd = aggregator.windowEnd(failedAt);
         databasePh.saveAndFlush(PhMeasurement.fromDevice(persistedKey.getStation(), PhWaterType.RAW,
-                new BigDecimal("6.00"), failedEnd, persistedKey, persistedKey.getName(), failedEnd, 1));
+                new BigDecimal("6.00"), failedEnd, persistedKey, persistedKey.getName(), failedEnd, Integer.MAX_VALUE));
         DeviceReading failedRaw = databaseReadings.saveAndFlush(new DeviceReading(persistedKey,
                 DeviceReadingType.PH_RAW, new BigDecimal("6.50"), null, failedAt));
         DeviceReading succeededRaw = databaseReadings.saveAndFlush(new DeviceReading(persistedKey,
@@ -403,6 +414,150 @@ class DeviceHourlyAggregatorTest {
         assertThat(existing.getSampleCount()).isEqualTo(3);
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mergesPendingGroupIntoPersistedAverageWithOneRounding() {
+        DeviceKey persistedKey = seedKey("merge-group");
+        Instant at = NOW.minusSeconds(1800);
+        Instant end = aggregator.windowEnd(at);
+        PhMeasurement initial = databasePh.saveAndFlush(PhMeasurement.fromDevice(persistedKey.getStation(),
+                PhWaterType.RAW, new BigDecimal("6.00"), end, persistedKey, "Sensor", end, 2));
+        DeviceReading first = databaseReadings.saveAndFlush(new DeviceReading(persistedKey, DeviceReadingType.PH_RAW,
+                new BigDecimal("7.01"), null, at));
+        DeviceReading second = databaseReadings.saveAndFlush(new DeviceReading(persistedKey, DeviceReadingType.PH_RAW,
+                new BigDecimal("8.00"), null, at.plusSeconds(1)));
+
+        databaseAggregator.aggregateClosedHours(NOW);
+        databaseAggregator.aggregateClosedHours(NOW);
+
+        PhMeasurement merged = databasePh.findById(initial.getId()).orElseThrow();
+        assertThat(merged.getPh()).isEqualByComparingTo("6.75");
+        assertThat(merged.getSampleCount()).isEqualTo(4);
+        assertThat(merged.getMeasuredAt()).isEqualTo(end);
+        assertThat(databaseReadings.findById(first.getId())).isEmpty();
+        assertThat(databaseReadings.findById(second.getId())).isEmpty();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void discardsPendingGroupWhenPersistedAverageWasEditedOrDeleted() {
+        for (boolean deleted : List.of(false, true)) {
+            DeviceKey persistedKey = seedKey("protected-" + deleted);
+            Instant at = NOW.minusSeconds(1800);
+            Instant end = aggregator.windowEnd(at);
+            AppUser user = users.findAll().getFirst();
+            PhMeasurement initial = PhMeasurement.fromDevice(persistedKey.getStation(), PhWaterType.RAW,
+                    new BigDecimal("6.00"), end, persistedKey, "Sensor", end, 2);
+            if (deleted) initial.softDelete(user);
+            initial = databasePh.saveAndFlush(initial);
+            if (!deleted) databaseAudit.saveAndFlush(new br.com.carbonifera.ete.audit.AuditEvent(
+                    AuditRecordType.PH_MEASUREMENT, AuditAction.UPDATED, initial.getId(),
+                    persistedKey.getStation(), user, "Human correction"));
+            DeviceReading raw = databaseReadings.saveAndFlush(new DeviceReading(persistedKey, DeviceReadingType.PH_RAW,
+                    new BigDecimal("8.00"), null, at));
+
+            databaseAggregator.aggregateClosedHours(NOW);
+
+            PhMeasurement preserved = databasePh.findById(initial.getId()).orElseThrow();
+            assertThat(preserved.getPh()).isEqualByComparingTo("6.00");
+            assertThat(preserved.getSampleCount()).isEqualTo(2);
+            assertThat(preserved.isDeleted()).isEqualTo(deleted);
+            assertThat(databaseReadings.findById(raw.getId())).isEmpty();
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void persistsLateMergeOutsideCallerTransaction() {
+        DeviceKey persistedKey = seedKey("persist-late");
+        Instant at = NOW.minusSeconds(1800);
+        Instant end = aggregator.windowEnd(at);
+        FlowMeasurement initial = databaseFlows.saveAndFlush(FlowMeasurement.fromDevice(persistedKey.getStation(),
+                new BigDecimal("12.00"), new BigDecimal("7.00"), end, persistedKey, "Sensor", end, 2));
+
+        assertThat(databaseAggregator.mergeLate(persistedKey, DeviceReadingType.FLOW, at,
+                new BigDecimal("10.00"), new BigDecimal("18.00"), NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+
+        FlowMeasurement merged = databaseFlows.findById(initial.getId()).orElseThrow();
+        assertThat(merged.getHeightCm()).isEqualByComparingTo("8.00");
+        assertThat(merged.getFlowLiters()).isEqualByComparingTo("14.00");
+        assertThat(merged.getSampleCount()).isEqualTo(3);
+        assertThat(merged.getMeasuredAt()).isEqualTo(end);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void serializesConcurrentLateMergesOnTheSameHourlyAverage() throws Exception {
+        DeviceKey persistedKey = seedKey("concurrent-late");
+        Instant at = NOW.minusSeconds(1800);
+        Instant end = aggregator.windowEnd(at);
+        PhMeasurement initial = databasePh.saveAndFlush(PhMeasurement.fromDevice(persistedKey.getStation(),
+                PhWaterType.RAW, new BigDecimal("6.00"), end, persistedKey, "Sensor", end, 2));
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<DeviceHourlyAggregator.MergeOutcome> merge = () -> {
+                ready.countDown();
+                if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new IllegalStateException("start timeout");
+                return databaseAggregator.mergeLate(persistedKey, DeviceReadingType.PH_RAW, at,
+                        new BigDecimal("8.00"), null, NOW);
+            };
+            var first = executor.submit(merge);
+            var second = executor.submit(merge);
+            assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(first.get(10, java.util.concurrent.TimeUnit.SECONDS))
+                    .isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+            assertThat(second.get(10, java.util.concurrent.TimeUnit.SECONDS))
+                    .isEqualTo(DeviceHourlyAggregator.MergeOutcome.MERGED);
+        }
+        PhMeasurement merged = databasePh.findById(initial.getId()).orElseThrow();
+        assertThat(merged.getPh()).isEqualByComparingTo("7.00");
+        assertThat(merged.getSampleCount()).isEqualTo(4);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void waitsForHumanEditBeforeCheckingAuditAndPreservesTheCorrection() throws Exception {
+        DeviceKey persistedKey = seedKey("concurrent-edit");
+        Instant at = NOW.minusSeconds(1800);
+        Instant end = aggregator.windowEnd(at);
+        PhMeasurement initial = databasePh.saveAndFlush(PhMeasurement.fromDevice(persistedKey.getStation(),
+                PhWaterType.RAW, new BigDecimal("6.00"), end, persistedKey, "Sensor", end, 2));
+        AppUser user = users.findAll().getFirst();
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var result = new java.util.concurrent.atomic.AtomicReference<
+                java.util.concurrent.Future<DeviceHourlyAggregator.MergeOutcome>>();
+        try (var executor = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            new org.springframework.transaction.support.TransactionTemplate(databaseTransactions).executeWithoutResult(status -> {
+                PhMeasurement edited = databasePh.findByIdAndDeletedFalse(initial.getId()).orElseThrow();
+                edited.update(persistedKey.getStation(), PhWaterType.RAW, new BigDecimal("9.00"), end);
+                databaseAudit.saveAndFlush(new br.com.carbonifera.ete.audit.AuditEvent(
+                        AuditRecordType.PH_MEASUREMENT, AuditAction.UPDATED, edited.getId(),
+                        persistedKey.getStation(), user, "Human correction"));
+                result.set(executor.submit(() -> {
+                    started.countDown();
+                    return databaseAggregator.mergeLate(persistedKey, DeviceReadingType.PH_RAW, at,
+                            new BigDecimal("8.00"), null, NOW);
+                }));
+                try {
+                    assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                    org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+                            () -> result.get().get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+            });
+            assertThat(result.get().get(10, java.util.concurrent.TimeUnit.SECONDS))
+                    .isEqualTo(DeviceHourlyAggregator.MergeOutcome.DISCARDED_EDITED);
+        }
+        PhMeasurement preserved = databasePh.findById(initial.getId()).orElseThrow();
+        assertThat(preserved.getPh()).isEqualByComparingTo("9.00");
+        assertThat(preserved.getSampleCount()).isEqualTo(2);
+    }
+
     private PhMeasurement phRecord(Instant measuredAt) {
         return PhMeasurement.fromDevice(key.getStation(), PhWaterType.RAW, new BigDecimal("7.00"),
                 Instant.parse("2026-11-13T18:00:00Z"), key, "Bomba 1", aggregator.windowEnd(measuredAt), 60);
@@ -422,6 +577,7 @@ class DeviceHourlyAggregatorTest {
     private DeviceReading persistedReading(DeviceReadingType type, String value, String at) {
         DeviceReading reading = reading(type, value, null, Instant.parse(at));
         ReflectionTestUtils.setField(reading, "id", UUID.randomUUID());
+        pendingReadings.put(reading.getId(), reading);
         return reading;
     }
 

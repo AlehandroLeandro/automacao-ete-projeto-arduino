@@ -39,16 +39,20 @@ public class DeviceHourlyAggregator {
     private final DeviceReadingRepository deviceReadingRepository;
     private final AuditEventRepository auditEventRepository;
     private final TransactionTemplate groupTransaction;
+    private final TransactionTemplate mergeTransaction;
+    private final DeviceKeyRepository deviceKeyRepository;
 
     public DeviceHourlyAggregator(DeviceReadingRepository deviceReadingRepository,
                                   FlowMeasurementRepository flowMeasurementRepository,
                                   PhMeasurementRepository phMeasurementRepository, AuditEventRepository auditEventRepository, Clock clock,
-                                  PlatformTransactionManager transactionManager) {
+                                  PlatformTransactionManager transactionManager, DeviceKeyRepository deviceKeyRepository) {
+        this.deviceKeyRepository = deviceKeyRepository;
         this.deviceReadingRepository = deviceReadingRepository;
         this.flowMeasurementRepository = flowMeasurementRepository;
         this.phMeasurementRepository = phMeasurementRepository;
         this.auditEventRepository = auditEventRepository;
         this.clock = clock;
+        this.mergeTransaction = new TransactionTemplate(transactionManager);
         this.groupTransaction = new TransactionTemplate(transactionManager);
         this.groupTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -63,8 +67,13 @@ public class DeviceHourlyAggregator {
         groups.forEach((group, readings) -> {
             try {
                 groupTransaction.executeWithoutResult(status -> {
-                    createAverage(group.deviceKey(), group.type(), group.windowEnd(), readings);
-                    deviceReadingRepository.deleteAllByIdIn(readings.stream().map(DeviceReading::getId).toList());
+                    // ponytail: serialize all hours/types for one key; use window locks if throughput requires it.
+                    deviceKeyRepository.lockById(group.deviceKey().getId());
+                    List<DeviceReading> pending = deviceReadingRepository.findAllById(
+                            readings.stream().map(DeviceReading::getId).toList());
+                    if (pending.isEmpty()) return;
+                    applyGroup(group.deviceKey(), group.type(), group.windowEnd(), pending);
+                    deviceReadingRepository.deleteAllByIdIn(pending.stream().map(DeviceReading::getId).toList());
                 });
             } catch (RuntimeException exception) {
                 log.error("Failed to aggregate device readings for key {}, type {}, hour {}",
@@ -84,13 +93,27 @@ public class DeviceHourlyAggregator {
             return MergeOutcome.DISCARDED_TOO_OLD;
         }
 
-        if (type == DeviceReadingType.FLOW) {
-            Optional<FlowMeasurement> existing = flowMeasurementRepository
-                    .findByDeviceKeyAndDeviceWindowEnd(deviceKey, end);
-            if (existing.isEmpty()) {
-                deviceReadingRepository.save(new DeviceReading(deviceKey, type, value, flowLiters, measuredAt));
+        return mergeTransaction.execute(status -> {
+            deviceKeyRepository.lockById(deviceKey.getId());
+            DeviceReading reading = new DeviceReading(deviceKey, type, value, flowLiters, measuredAt);
+            MergeOutcome outcome = mergeExisting(deviceKey, type, end, List.of(reading));
+            if (outcome == null) {
+                deviceReadingRepository.save(reading);
                 return MergeOutcome.RAW_STORED;
             }
+            return outcome;
+        });
+    }
+
+    private void applyGroup(DeviceKey key, DeviceReadingType type, Instant end, List<DeviceReading> readings) {
+        if (mergeExisting(key, type, end, readings) == null) createAverage(key, type, end, readings);
+    }
+
+    private MergeOutcome mergeExisting(DeviceKey key, DeviceReadingType type, Instant end,
+                                       List<DeviceReading> readings) {
+        if (type == DeviceReadingType.FLOW) {
+            Optional<FlowMeasurement> existing = flowMeasurementRepository.findByDeviceKeyAndDeviceWindowEnd(key, end);
+            if (existing.isEmpty()) return null;
             FlowMeasurement measurement = existing.get();
             if (measurement.isDeleted()) return MergeOutcome.DISCARDED_DELETED;
             if (auditEventRepository.existsByRecordTypeAndRecordIdAndAction(
@@ -98,19 +121,18 @@ public class DeviceHourlyAggregator {
                 return MergeOutcome.DISCARDED_EDITED;
             }
             int count = measurement.getSampleCount();
-            measurement.mergeDeviceReading(weightedAverage(measurement.getFlowLiters(), count, flowLiters),
-                    weightedAverage(measurement.getHeightCm(), count, value), count + 1);
+            int total = Math.addExact(count, readings.size());
+            measurement.mergeDeviceReading(weightedAverage(measurement.getFlowLiters(), count,
+                            readings.stream().map(DeviceReading::getFlowLiters).toList()),
+                    weightedAverage(measurement.getHeightCm(), count,
+                            readings.stream().map(DeviceReading::getValue).toList()), total);
             flowMeasurementRepository.save(measurement);
             return MergeOutcome.MERGED;
         }
 
         PhWaterType waterType = type == DeviceReadingType.PH_RAW ? PhWaterType.RAW : PhWaterType.TREATED;
-        Optional<PhMeasurement> existing = phMeasurementRepository
-                .findByDeviceKeyAndTypeAndDeviceWindowEnd(deviceKey, waterType, end);
-        if (existing.isEmpty()) {
-            deviceReadingRepository.save(new DeviceReading(deviceKey, type, value, null, measuredAt));
-            return MergeOutcome.RAW_STORED;
-        }
+        Optional<PhMeasurement> existing = phMeasurementRepository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, waterType, end);
+        if (existing.isEmpty()) return null;
         PhMeasurement measurement = existing.get();
         if (measurement.isDeleted()) return MergeOutcome.DISCARDED_DELETED;
         if (auditEventRepository.existsByRecordTypeAndRecordIdAndAction(
@@ -118,14 +140,17 @@ public class DeviceHourlyAggregator {
             return MergeOutcome.DISCARDED_EDITED;
         }
         int count = measurement.getSampleCount();
-        measurement.mergeDeviceReading(weightedAverage(measurement.getPh(), count, value), count + 1);
+        int total = Math.addExact(count, readings.size());
+        measurement.mergeDeviceReading(weightedAverage(measurement.getPh(), count,
+                readings.stream().map(DeviceReading::getValue).toList()), total);
         phMeasurementRepository.save(measurement);
         return MergeOutcome.MERGED;
     }
 
-    private BigDecimal weightedAverage(BigDecimal average, int count, BigDecimal value) {
-        return average.multiply(BigDecimal.valueOf(count)).add(value)
-                .divide(BigDecimal.valueOf(count + 1L), 2, RoundingMode.HALF_UP);
+    private BigDecimal weightedAverage(BigDecimal average, int count, List<BigDecimal> values) {
+        BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return average.multiply(BigDecimal.valueOf(count)).add(sum)
+                .divide(BigDecimal.valueOf(count + (long) values.size()), 2, RoundingMode.HALF_UP);
     }
 
     Instant windowEnd(Instant measuredAt) {

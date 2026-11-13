@@ -2,6 +2,8 @@ package br.com.carbonifera.ete.measurement;
 
 import br.com.carbonifera.ete.station.Station;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
@@ -17,6 +19,7 @@ public interface FlowMeasurementRepository extends JpaRepository<FlowMeasurement
 
     Optional<FlowMeasurement> findByClientRequestId(UUID clientRequestId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<FlowMeasurement> findByIdAndDeletedFalse(UUID measurementId);
 
     Optional<FlowMeasurement> findTopByStationInAndDeletedFalseOrderByMeasuredAtDesc(Collection<Station> stations);
@@ -106,6 +109,7 @@ public interface FlowMeasurementRepository extends JpaRepository<FlowMeasurement
             Pageable pageable
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<FlowMeasurement> findByDeviceKeyAndDeviceWindowEnd(
             br.com.carbonifera.ete.device.DeviceKey deviceKey,
             Instant deviceWindowEnd
