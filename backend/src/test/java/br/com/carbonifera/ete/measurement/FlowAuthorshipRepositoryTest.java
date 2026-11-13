@@ -1,6 +1,7 @@
 package br.com.carbonifera.ete.measurement;
 
 import br.com.carbonifera.ete.station.Station;
+import br.com.carbonifera.ete.device.DeviceKey;
 import br.com.carbonifera.ete.user.AppUser;
 import br.com.carbonifera.ete.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +50,7 @@ class FlowAuthorshipRepositoryTest {
     void authorFilterReturnsOnlyRecordsCreatedByThatAuthor() {
         FlowMeasurement ownedByA = save(operatorA, LATER_AT);
         save(operatorB, EARLIER_AT);
+        FlowMeasurement deviceRecord = saveDevice(LATER_AT.minusSeconds(60));
 
         List<FlowMeasurement> result = repository.findForList(
                 List.of(station),
@@ -60,7 +62,32 @@ class FlowAuthorshipRepositoryTest {
 
         assertThat(result)
                 .extracting(FlowMeasurement::getId)
+                .containsExactly(ownedByA.getId(), deviceRecord.getId());
+    }
+
+    @Test
+    void explicitAuthorFilterExcludesDeviceRecords() {
+        FlowMeasurement ownedByA = save(operatorA, LATER_AT);
+        saveDevice(EARLIER_AT);
+
+        assertThat(repository.findForListByAuthor(List.of(station), START_AT, END_AT, false,
+                operatorA.getId(), org.springframework.data.domain.PageRequest.of(0, 10)).getContent())
+                .extracting(FlowMeasurement::getId)
                 .containsExactly(ownedByA.getId());
+    }
+
+    @Test
+    void deviceWindowLookupReturnsSoftDeletedRecord() {
+        Instant windowEnd = LATER_AT.plusSeconds(3600);
+        DeviceKey key = saveDeviceKey();
+        FlowMeasurement record = entityManager.persistAndFlush(FlowMeasurement.fromDevice(station,
+                new BigDecimal("100.00"), new BigDecimal("10.00"), LATER_AT, key, key.getName(), windowEnd, 2));
+        record.softDelete(operatorA);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByDeviceKeyAndDeviceWindowEnd(key, windowEnd))
+                .get().extracting(FlowMeasurement::getId).isEqualTo(record.getId());
     }
 
     @Test
@@ -137,5 +164,16 @@ class FlowAuthorshipRepositoryTest {
         measurement.softDelete(createdBy);
         entityManager.flush();
         return measurement;
+    }
+
+    private FlowMeasurement saveDevice(Instant measuredAt) {
+        DeviceKey key = saveDeviceKey();
+        return entityManager.persistAndFlush(FlowMeasurement.fromDevice(station, new BigDecimal("100.00"),
+                new BigDecimal("10.00"), measuredAt, key, key.getName(), measuredAt.plusSeconds(3600), 1));
+    }
+
+    private DeviceKey saveDeviceKey() {
+        return entityManager.persistFlushFind(new DeviceKey(station, "sensor-" + java.util.UUID.randomUUID(),
+                "encrypted", java.util.UUID.randomUUID().toString().replace("-", ""), operatorA));
     }
 }

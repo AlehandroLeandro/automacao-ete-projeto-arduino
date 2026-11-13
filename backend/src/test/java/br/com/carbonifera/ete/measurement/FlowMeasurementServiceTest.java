@@ -18,6 +18,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -90,6 +94,20 @@ class FlowMeasurementServiceTest {
                 .hasMessage(FUTURE_TIME_MESSAGE);
 
         verifyNoInteractions(stationScopeService, currentUserService, repository);
+    }
+
+    @Test
+    void pagedAdminListUsesStrictRequestedAuthorFilter() {
+        UserPrincipal adminPrincipal = UserPrincipal.from(admin);
+        Instant startAt = CURRENT_TIME.minusSeconds(10);
+        when(stationScopeService.resolveReadableStations(null, false, adminPrincipal)).thenReturn(List.of(station));
+        when(repository.findForListByAuthor(any(), any(), any(), any(Boolean.class), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.list(null, false, startAt, CURRENT_TIME, false, user.getId(), 0, 10, adminPrincipal);
+
+        verify(repository).findForListByAuthor(List.of(station), startAt, CURRENT_TIME, false, user.getId(),
+                PageRequest.of(0, 10, Sort.by(Sort.Order.desc("measuredAt"), Sort.Order.desc("id"))));
     }
 
     @Test

@@ -59,7 +59,7 @@ public interface FlowMeasurementRepository extends JpaRepository<FlowMeasurement
               and (cast(:includeDeleted as boolean) = true or measurement.deleted = false)
               and (cast(:startAt as timestamp) is null or measurement.measuredAt >= :startAt)
               and (cast(:endAt as timestamp) is null or measurement.measuredAt < :endAt)
-              and (:createdById is null or measurement.createdBy.id = :createdById)
+              and (:createdById is null or measurement.createdBy.id = :createdById or measurement.createdBy is null)
             order by measurement.measuredAt desc, measurement.id desc
             """)
     List<FlowMeasurement> findForList(
@@ -76,7 +76,7 @@ public interface FlowMeasurementRepository extends JpaRepository<FlowMeasurement
               and (cast(:includeDeleted as boolean) = true or measurement.deleted = false)
               and (cast(:startAt as timestamp) is null or measurement.measuredAt >= :startAt)
               and (cast(:endAt as timestamp) is null or measurement.measuredAt < :endAt)
-              and (:createdById is null or measurement.createdBy.id = :createdById)
+              and (:createdById is null or measurement.createdBy.id = :createdById or measurement.createdBy is null)
             order by measurement.measuredAt desc, measurement.id desc
             """)
     Page<FlowMeasurement> findForList(
@@ -86,5 +86,28 @@ public interface FlowMeasurementRepository extends JpaRepository<FlowMeasurement
             @Param("includeDeleted") boolean includeDeleted,
             @Param("createdById") UUID createdById,
             Pageable pageable
+    );
+
+    @Query("""
+            select measurement from FlowMeasurement measurement
+            where measurement.station in :stations
+              and (cast(:includeDeleted as boolean) = true or measurement.deleted = false)
+              and (cast(:startAt as timestamp) is null or measurement.measuredAt >= :startAt)
+              and (cast(:endAt as timestamp) is null or measurement.measuredAt < :endAt)
+              and measurement.createdBy.id = :createdById
+            order by measurement.measuredAt desc, measurement.id desc
+            """)
+    Page<FlowMeasurement> findForListByAuthor(
+            @Param("stations") Collection<Station> stations,
+            @Param("startAt") Instant startAt,
+            @Param("endAt") Instant endAt,
+            @Param("includeDeleted") boolean includeDeleted,
+            @Param("createdById") UUID createdById,
+            Pageable pageable
+    );
+
+    Optional<FlowMeasurement> findByDeviceKeyAndDeviceWindowEnd(
+            br.com.carbonifera.ete.device.DeviceKey deviceKey,
+            Instant deviceWindowEnd
     );
 }
