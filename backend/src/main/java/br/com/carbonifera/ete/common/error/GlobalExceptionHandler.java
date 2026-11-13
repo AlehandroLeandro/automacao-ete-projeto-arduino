@@ -41,6 +41,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({BusinessException.class, IllegalArgumentException.class})
     public ResponseEntity<ApiError> handleBusiness(RuntimeException exception, HttpServletRequest request) {
+        if (exception instanceof BusinessException businessException) {
+            return build(businessException.getStatus(), exception.getMessage(), request);
+        }
         return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
     }
 
