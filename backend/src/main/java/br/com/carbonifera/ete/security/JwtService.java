@@ -1,5 +1,6 @@
 package br.com.carbonifera.ete.security;
 
+import br.com.carbonifera.ete.device.DeviceKey;
 import br.com.carbonifera.ete.config.JwtProperties;
 import br.com.carbonifera.ete.user.AppUser;
 import io.jsonwebtoken.Claims;
@@ -13,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.UUID;
 
 @Service
 public class JwtService {
@@ -34,6 +36,23 @@ public class JwtService {
         return generateToken(user, ACCESS, expiresAt);
     }
 
+    public String generateDeviceAccessToken(DeviceKey deviceKey) {
+        Instant issuedAt = Instant.now();
+        Instant expiresAt = issuedAt.plus(properties.accessTokenMinutes(), ChronoUnit.MINUTES);
+        UUID deviceKeyId = deviceKey.getId();
+        UUID stationId = deviceKey.getStation().getId();
+        return Jwts.builder()
+                .subject("device:" + deviceKeyId)
+                .claim("role", "DEVICE")
+                .claim("deviceKeyId", deviceKeyId.toString())
+                .claim("stationId", stationId.toString())
+                .claim(TOKEN_TYPE, ACCESS)
+                .issuedAt(Date.from(issuedAt))
+                .expiration(Date.from(expiresAt))
+                .signWith(key)
+                .compact();
+    }
+
     public String generateRefreshToken(AppUser user) {
         Instant expiresAt = Instant.now().plus(properties.refreshTokenDays(), ChronoUnit.DAYS);
         return generateToken(user, REFRESH, expiresAt);
@@ -53,6 +72,16 @@ public class JwtService {
 
     public boolean isAccessToken(String token) {
         return ACCESS.equals(parseClaims(token).get(TOKEN_TYPE, String.class));
+    }
+
+    public boolean isDeviceToken(String token) {
+        Claims claims = parseClaims(token);
+        return "DEVICE".equals(claims.get("role", String.class))
+                && ACCESS.equals(claims.get(TOKEN_TYPE, String.class));
+    }
+
+    public UUID deviceKeyId(String token) {
+        return UUID.fromString(parseClaims(token).get("deviceKeyId", String.class));
     }
 
     public String subject(String token) {
