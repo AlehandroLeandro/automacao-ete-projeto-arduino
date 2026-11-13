@@ -1,6 +1,7 @@
 package br.com.carbonifera.ete.measurement;
 
 import br.com.carbonifera.ete.station.Station;
+import br.com.carbonifera.ete.device.DeviceKey;
 import br.com.carbonifera.ete.user.AppUser;
 import br.com.carbonifera.ete.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +50,7 @@ class PhAuthorshipRepositoryTest {
     void authorFilterReturnsOnlyRecordsCreatedByThatAuthor() {
         PhMeasurement ownedByA = save(operatorA, PhWaterType.RAW, LATER_AT);
         save(operatorB, PhWaterType.RAW, EARLIER_AT);
+        PhMeasurement deviceRecord = saveDevice(PhWaterType.RAW, LATER_AT.minusSeconds(60));
 
         List<PhMeasurement> result = repository.findForList(
                 List.of(station),
@@ -60,6 +62,35 @@ class PhAuthorshipRepositoryTest {
         );
 
         assertThat(result)
+                .extracting(PhMeasurement::getId)
+                .containsExactly(ownedByA.getId(), deviceRecord.getId());
+    }
+
+    @Test
+    void deviceWindowLookupDistinguishesRawAndTreatedRecords() {
+        DeviceKey key = saveDeviceKey();
+        Instant windowEnd = LATER_AT.plusSeconds(3600);
+        PhMeasurement raw = entityManager.persistAndFlush(PhMeasurement.fromDevice(station, PhWaterType.RAW,
+                new BigDecimal("7.20"), LATER_AT, key, key.getName(), windowEnd, 2));
+        PhMeasurement treated = entityManager.persistAndFlush(PhMeasurement.fromDevice(station, PhWaterType.TREATED,
+                new BigDecimal("6.80"), LATER_AT, key, key.getName(), windowEnd, 2));
+        raw.softDelete(operatorA);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.RAW, windowEnd))
+                .get().extracting(PhMeasurement::getId).isEqualTo(raw.getId());
+        assertThat(repository.findByDeviceKeyAndTypeAndDeviceWindowEnd(key, PhWaterType.TREATED, windowEnd))
+                .get().extracting(PhMeasurement::getId).isEqualTo(treated.getId());
+    }
+
+    @Test
+    void explicitAuthorFilterExcludesDeviceRecords() {
+        PhMeasurement ownedByA = save(operatorA, PhWaterType.RAW, LATER_AT);
+        saveDevice(PhWaterType.RAW, EARLIER_AT);
+
+        assertThat(repository.findForListByAuthor(List.of(station), null, START_AT, END_AT, false,
+                operatorA.getId(), org.springframework.data.domain.PageRequest.of(0, 10)).getContent())
                 .extracting(PhMeasurement::getId)
                 .containsExactly(ownedByA.getId());
     }
@@ -161,5 +192,16 @@ class PhAuthorshipRepositoryTest {
         measurement.softDelete(createdBy);
         entityManager.flush();
         return measurement;
+    }
+
+    private PhMeasurement saveDevice(PhWaterType type, Instant measuredAt) {
+        DeviceKey key = saveDeviceKey();
+        return entityManager.persistAndFlush(PhMeasurement.fromDevice(station, type, new BigDecimal("7.20"),
+                measuredAt, key, key.getName(), measuredAt.plusSeconds(3600), 1));
+    }
+
+    private DeviceKey saveDeviceKey() {
+        return entityManager.persistFlushFind(new DeviceKey(station, "sensor-" + java.util.UUID.randomUUID(),
+                "encrypted", java.util.UUID.randomUUID().toString().replace("-", ""), operatorA));
     }
 }

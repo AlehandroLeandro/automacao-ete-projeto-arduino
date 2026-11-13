@@ -117,9 +117,9 @@ class PhMeasurementServiceTest {
     void pagedListUsesRequestedAuthorForAdmin() {
         UserPrincipal adminPrincipal = UserPrincipal.from(admin);
         when(stationScopeService.resolveReadableStations(null, false, adminPrincipal)).thenReturn(List.of(station));
-        when(repository.findForList(any(), any(), any(), any(), any(Boolean.class), any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+        when(repository.findForListByAuthor(any(), any(), any(), any(), any(Boolean.class), any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
         service.list(null, false, null, CURRENT_TIME.minusSeconds(10), CURRENT_TIME, false, user.getId(), 0, 10, adminPrincipal);
-        verify(repository).findForList(List.of(station), null, CURRENT_TIME.minusSeconds(10), CURRENT_TIME, false, user.getId(), PageRequest.of(0, 10, Sort.by(Sort.Order.desc("measuredAt"), Sort.Order.desc("id"))));
+        verify(repository).findForListByAuthor(List.of(station), null, CURRENT_TIME.minusSeconds(10), CURRENT_TIME, false, user.getId(), PageRequest.of(0, 10, Sort.by(Sort.Order.desc("measuredAt"), Sort.Order.desc("id"))));
     }
 
     @Test

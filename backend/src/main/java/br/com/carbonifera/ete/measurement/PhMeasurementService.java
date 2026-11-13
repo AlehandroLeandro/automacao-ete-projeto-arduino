@@ -131,9 +131,14 @@ public class PhMeasurementService {
         requireValidPeriod(startAt, endAt);
         List<Station> stations = stationScopeService.resolveReadableStations(stationId, consolidated, principal);
         UUID effectiveAuthor = authorshipPolicy.authorFilterOrNull(principal);
+        boolean operatorAuthorFilter = effectiveAuthor != null;
         if (effectiveAuthor == null) effectiveAuthor = authorUserId;
-        return repository.findForList(stations, type, startAt, endAt, includeDeleted, effectiveAuthor,
-                        PageRequest.of(page, size, Sort.by(Sort.Order.desc("measuredAt"), Sort.Order.desc("id"))))
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("measuredAt"), Sort.Order.desc("id")));
+        if (!operatorAuthorFilter && authorUserId != null) {
+            return repository.findForListByAuthor(stations, type, startAt, endAt, includeDeleted, authorUserId, pageable)
+                    .map(PhMeasurementResponse::from);
+        }
+        return repository.findForList(stations, type, startAt, endAt, includeDeleted, effectiveAuthor, pageable)
                 .map(PhMeasurementResponse::from);
     }
 

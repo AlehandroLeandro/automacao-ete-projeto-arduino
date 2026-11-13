@@ -70,7 +70,7 @@ public interface PhMeasurementRepository extends JpaRepository<PhMeasurement, UU
               and (cast(:includeDeleted as boolean) = true or measurement.deleted = false)
               and (cast(:startAt as timestamp) is null or measurement.measuredAt >= :startAt)
               and (cast(:endAt as timestamp) is null or measurement.measuredAt < :endAt)
-              and (:createdById is null or measurement.createdBy.id = :createdById)
+              and (:createdById is null or measurement.createdBy.id = :createdById or measurement.createdBy is null)
             order by measurement.measuredAt desc, measurement.id desc
             """)
     Page<PhMeasurement> findForList(
@@ -90,7 +90,7 @@ public interface PhMeasurementRepository extends JpaRepository<PhMeasurement, UU
               and (cast(:includeDeleted as boolean) = true or measurement.deleted = false)
               and (cast(:startAt as timestamp) is null or measurement.measuredAt >= :startAt)
               and (cast(:endAt as timestamp) is null or measurement.measuredAt < :endAt)
-              and (:createdById is null or measurement.createdBy.id = :createdById)
+              and (:createdById is null or measurement.createdBy.id = :createdById or measurement.createdBy is null)
             order by measurement.measuredAt desc, measurement.id desc
             """)
     List<PhMeasurement> findForList(
@@ -100,5 +100,31 @@ public interface PhMeasurementRepository extends JpaRepository<PhMeasurement, UU
             @Param("endAt") Instant endAt,
             @Param("includeDeleted") boolean includeDeleted,
             @Param("createdById") UUID createdById
+    );
+
+    @Query("""
+            select measurement from PhMeasurement measurement
+            where measurement.station in :stations
+              and (:type is null or measurement.type = :type)
+              and (cast(:includeDeleted as boolean) = true or measurement.deleted = false)
+              and (cast(:startAt as timestamp) is null or measurement.measuredAt >= :startAt)
+              and (cast(:endAt as timestamp) is null or measurement.measuredAt < :endAt)
+              and measurement.createdBy.id = :createdById
+            order by measurement.measuredAt desc, measurement.id desc
+            """)
+    Page<PhMeasurement> findForListByAuthor(
+            @Param("stations") Collection<Station> stations,
+            @Param("type") PhWaterType type,
+            @Param("startAt") Instant startAt,
+            @Param("endAt") Instant endAt,
+            @Param("includeDeleted") boolean includeDeleted,
+            @Param("createdById") UUID createdById,
+            Pageable pageable
+    );
+
+    Optional<PhMeasurement> findByDeviceKeyAndTypeAndDeviceWindowEnd(
+            br.com.carbonifera.ete.device.DeviceKey deviceKey,
+            PhWaterType type,
+            Instant deviceWindowEnd
     );
 }
