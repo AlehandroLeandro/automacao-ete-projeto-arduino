@@ -69,30 +69,6 @@ public class DashboardService {
             StoppageRepository stoppageRepository,
             ShiftCalculator shiftCalculator,
             StationScopeService stationScopeService,
-            DeviceLiveReadingService liveReadings
-    ) {
-        this(
-                stationService,
-                limeService,
-                limeRecordRepository,
-                phMeasurementRepository,
-                flowMeasurementRepository,
-                stoppageRepository,
-                shiftCalculator,
-                stationScopeService,
-                Clock.system(BUSINESS_ZONE), liveReadings
-        );
-    }
-
-    DashboardService(
-            StationService stationService,
-            LimeService limeService,
-            LimeRecordRepository limeRecordRepository,
-            PhMeasurementRepository phMeasurementRepository,
-            FlowMeasurementRepository flowMeasurementRepository,
-            StoppageRepository stoppageRepository,
-            ShiftCalculator shiftCalculator,
-            StationScopeService stationScopeService,
             Clock clock,
             DeviceLiveReadingService liveReadings
     ) {

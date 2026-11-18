@@ -95,6 +95,7 @@ class DashboardServiceTest {
             context.registerBean(StoppageRepository.class, () -> mock(StoppageRepository.class));
             context.registerBean(ShiftCalculator.class, () -> mock(ShiftCalculator.class));
             context.registerBean(StationScopeService.class, () -> mock(StationScopeService.class));
+            context.registerBean(Clock.class, Clock::systemUTC);
             context.registerBean(br.com.carbonifera.ete.device.DeviceLiveReadingService.class, () -> mock(br.com.carbonifera.ete.device.DeviceLiveReadingService.class));
             context.register(DashboardService.class);
 
