@@ -51,3 +51,56 @@ Configure as chaves VAPID no backend antes de habilitar notificacoes no celular 
 - `PUSH_VAPID_SUBJECT` (ex.: `mailto:admin@empresa.com`)
 
 As chaves podem ser geradas com a CLI da biblioteca Java (`generate-key`) ou com `web-push generate-vapid-keys`. Nao commite chaves reais. Em producao, o frontend precisa rodar em HTTPS; `localhost` e a excecao aceita pelos navegadores. O service worker e servido em `/sw.js` e deve ser revalidado sem cache agressivo.
+
+## Implantacao e dispositivos Arduino
+
+- Configure `DEVICE_KEY_ENCRYPTION_SECRET` com um segredo obrigatorio de pelo menos 32 caracteres. A troca desse segredo torna as chaves de dispositivo existentes ilegíveis: exclua-as e gere novas chaves.
+- `DEVICE_OFFLINE_MINUTES` define o tempo em minutos sem contato para considerar um dispositivo offline (padrao: `5`).
+- `DEVICE_RATE_LIMIT_PER_MINUTE` define o limite de requisicoes de leitura por dispositivo por minuto (padrao: `10`).
+- Em producao, sirva a aplicacao por HTTPS usando um proxy reverso, inclusive para proteger a chave e o token do dispositivo em transito.
+- O limitador de login usa o endereco retornado por `request.getRemoteAddr()`. Atras de um proxy, esse endereco pode ser o do proprio proxy, fazendo clientes compartilharem o bloqueio. Configure o proxy para repassar o IP real e o servidor para reconhece-lo com uma configuracao confiavel; o codigo do login nao le diretamente cabecalhos como `X-Forwarded-For`.
+
+### Protocolo Arduino
+
+O dispositivo deve enviar uma leitura por minuto. Primeiro, autentique-se em `POST /api/auth/device-login`, endpoint publico, com uma chave ativa de 24 caracteres:
+
+```json
+{"key": "string"}
+```
+
+Exemplo (substitua URL e chave):
+
+```bash
+curl -X POST https://ete.example.com/api/auth/device-login \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"SUA_CHAVE_DE_24_CARACTERES"}'
+```
+
+A resposta bem-sucedida tem o formato `{"accessToken": string, "tokenType": string, "expiresInSeconds": number}`. Nao ha refresh token: ao expirar o token ou receber `401`, refaca o login com a chave. O `401` de login e generico; `429` indica IP bloqueado por 15 minutos e nao possui corpo informativo.
+
+Envie os dados para `POST /api/device/readings` com `Authorization: Bearer <accessToken>` de dispositivo (`DEVICE`). O corpo tem os campos opcionais abaixo; pelo menos uma leitura numerica valida deve ser enviada:
+
+```text
+{"heightCm"?: number, "rawPh"?: number, "treatedPh"?: number, "measuredAt"?: ISO-8601 instant}
+```
+
+- `heightCm`: altura em centimetros, de 0 a 45 inclusive, com no maximo duas casas decimais.
+- `rawPh` e `treatedPh`: pH bruto e tratado, respectivamente, de 0 a 14 inclusive, com no maximo duas casas decimais.
+- `measuredAt`: instante da medicao em ISO-8601, por exemplo `2026-01-01T12:00:00Z`; quando omitido, usa o horario de recebimento. Nao pode estar no futuro.
+
+```bash
+curl -X POST https://ete.example.com/api/device/readings \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer SEU_ACCESS_TOKEN' \
+  -d '{"heightCm":12.34,"rawPh":7.20,"treatedPh":7.10}'
+```
+
+Uma resposta `200` tem o formato:
+
+```text
+{"accepted": string[], "rejected": [{"field": string, "reason": string}], "discarded": [{"field": string, "reason": "EDITED" | "DELETED" | "TOO_OLD"}]}
+```
+
+`accepted` lista campos validos; `rejected` informa campos invalidos e seus motivos. `discarded` informa leituras tardias descartadas porque o registro foi editado (`EDITED`), excluido (`DELETED`) ou e antigo demais (`TOO_OLD`); um campo validado pode aparecer tambem em `discarded`.
+
+O envio retorna `400` se nao houver valor valido ou o horario estiver no futuro; `401` para token ou chave invalidos (refaca o login com a chave); `403` para usuario humano; e `429` quando o limite por dispositivo for excedido (padrao: 10 por minuto).
