@@ -45,12 +45,12 @@ class DeviceReadingControllerTest {
         when(keys.findById(id)).thenReturn(Optional.of(key));
         when(service.receive(eq(id), any())).thenReturn(new DeviceReadingResponse(List.of("rawPh"),
                 List.of(new DeviceReadingResponse.FieldResult("heightCm", "invalid")),
-                List.of(new DeviceReadingResponse.FieldResult("rawPh", "EDITED"))));
+                List.of(new DeviceReadingResponse.FieldResult("treatedPh", "EDITED"))));
         mvc.perform(post("/api/device/readings").header("Authorization", "Bearer valid")
                         .contentType("application/json").content("{\"rawPh\":7,\"heightCm\":46}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accepted[0]").value("rawPh"))
                 .andExpect(jsonPath("$.rejected[0].field").value("heightCm"))
-                .andExpect(jsonPath("$.discarded[0].field").value("rawPh"))
+                .andExpect(jsonPath("$.discarded[0].field").value("treatedPh"))
                 .andExpect(jsonPath("$.discarded[0].reason").value("EDITED"));
         verify(service).receive(eq(id), any());
     }

@@ -57,6 +57,7 @@ public class DeviceReadingService {
             if (store(key, DeviceReadingType.PH_TREATED, "treatedPh", request.treatedPh(), null, measuredAt, now, discarded)
                     && (key.getLastTreatedPhAt() == null || !measuredAt.isBefore(key.getLastTreatedPhAt()))) key.recordLivePh(null, request.treatedPh(), measuredAt);
         }
+        discarded.forEach(result -> accepted.remove(result.field()));
         key.recordSeen(now);
         return new DeviceReadingResponse(List.copyOf(accepted), List.copyOf(rejected), List.copyOf(discarded));
     }

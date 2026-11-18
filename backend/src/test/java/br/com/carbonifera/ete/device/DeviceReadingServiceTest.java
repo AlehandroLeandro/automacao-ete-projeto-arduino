@@ -31,11 +31,26 @@ class DeviceReadingServiceTest {
         when(aggregator.mergeLate(eq(key), eq(DeviceReadingType.PH_TREATED), eq(measured), any(), isNull(), eq(now)))
                 .thenReturn(DeviceHourlyAggregator.MergeOutcome.DISCARDED_TOO_OLD);
         var result = service.receive(id, new DeviceReadingRequest(n("10"), n("7"), n("8"), measured));
+        assertThat(result.accepted()).isEmpty();
+        assertThat(result.rejected()).isEmpty();
+        assertThat(result.discarded()).extracting(DeviceReadingResponse.FieldResult::field)
+                .containsExactly("heightCm", "rawPh", "treatedPh");
         assertThat(result.discarded()).extracting(DeviceReadingResponse.FieldResult::reason)
                 .containsExactly("EDITED", "DELETED", "TOO_OLD");
         verify(aggregator).mergeLate(key, DeviceReadingType.FLOW, measured, n("10"), n("19.76"), now);
         verifyNoInteractions(readings);
         assertThat(key.getLastFlowAt()).isNull();
+    }
+    @Test void lateReadingAcceptsOnlySuccessfullyMergedFields() {
+        Instant measured = now.minusSeconds(3600);
+        when(aggregator.mergeLate(eq(key), eq(DeviceReadingType.FLOW), eq(measured), any(), any(), eq(now)))
+                .thenReturn(DeviceHourlyAggregator.MergeOutcome.DISCARDED_EDITED);
+        when(aggregator.mergeLate(eq(key), eq(DeviceReadingType.PH_RAW), eq(measured), any(), isNull(), eq(now)))
+                .thenReturn(DeviceHourlyAggregator.MergeOutcome.MERGED);
+        var result = service.receive(id, new DeviceReadingRequest(n("10"), n("7"), n("15"), measured));
+        assertThat(result.accepted()).containsExactly("rawPh");
+        assertThat(result.rejected()).extracting(DeviceReadingResponse.FieldResult::field).containsExactly("treatedPh");
+        assertThat(result.discarded()).containsExactly(new DeviceReadingResponse.FieldResult("heightCm", "EDITED"));
     }
     @Test void exactHourBelongsToNewWindow() {
         Instant measured = Instant.parse("2026-01-01T12:00:00Z");
