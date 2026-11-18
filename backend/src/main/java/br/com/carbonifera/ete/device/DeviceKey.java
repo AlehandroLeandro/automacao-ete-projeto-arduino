@@ -108,6 +108,14 @@ public class DeviceKey {
         lastSeenAt = seenAt;
     }
 
+    public void markOfflineNotified(Instant seenAt) {
+        offlineNotifiedForSeenAt = seenAt;
+    }
+
+    public void clearOfflineNotified() {
+        offlineNotifiedForSeenAt = null;
+    }
+
     public void recordLiveFlow(BigDecimal heightCm, BigDecimal flowLiters, Instant measuredAt) {
         if (heightCm != null) {
             lastHeightCm = heightCm;

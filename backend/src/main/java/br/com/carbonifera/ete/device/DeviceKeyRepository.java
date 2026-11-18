@@ -25,6 +25,9 @@ public interface DeviceKeyRepository extends JpaRepository<DeviceKey, UUID> {
 
     List<DeviceKey> findAllByActiveTrueAndLastSeenAtIsNotNull();
 
+    @Query("select key.id from DeviceKey key where key.active = true and key.lastSeenAt is not null")
+    List<UUID> findMonitorCandidateIds();
+
     List<DeviceKey> findAllByStationIn(List<Station> stations);
 
     List<DeviceKey> findAllByStationInAndActiveTrue(List<Station> stations);
