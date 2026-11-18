@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 test("listStations requires authentication because stations are operational data", () => {
-  const source = readFileSync(new URL("../../src/services/stationApi.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../src/services/stationApi.ts", import.meta.url), "utf8").replace(/\r\n/g, "\n");
   const functionBody = source.slice(
     source.indexOf("export function listStations"),
     source.indexOf("}\n", source.indexOf("export function listStations")) + 1,
@@ -14,7 +14,7 @@ test("listStations requires authentication because stations are operational data
 });
 
 test("updateLimeThreshold delegates object payload serialization to the API client", () => {
-  const source = readFileSync(new URL("../../src/services/stationApi.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../src/services/stationApi.ts", import.meta.url), "utf8").replace(/\r\n/g, "\n");
   const functionBody = source.slice(
     source.indexOf("export function updateLimeThreshold"),
     source.indexOf("}\n", source.indexOf("export function updateLimeThreshold")) + 1,
