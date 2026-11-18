@@ -25,5 +25,7 @@ public interface DeviceKeyRepository extends JpaRepository<DeviceKey, UUID> {
 
     List<DeviceKey> findAllByActiveTrueAndLastSeenAtIsNotNull();
 
+    List<DeviceKey> findAllByStationIn(List<Station> stations);
+
     List<DeviceKey> findAllByStationInAndActiveTrue(List<Station> stations);
 }

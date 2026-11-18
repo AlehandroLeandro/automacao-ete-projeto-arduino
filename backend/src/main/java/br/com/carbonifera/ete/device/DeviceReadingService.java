@@ -2,25 +2,31 @@ package br.com.carbonifera.ete.device;
 
 import br.com.carbonifera.ete.common.error.BusinessException;
 import br.com.carbonifera.ete.measurement.FlowRateCalculator;
+import br.com.carbonifera.ete.config.SchedulingConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 public class DeviceReadingService {
+    private static final Logger log = LoggerFactory.getLogger(DeviceReadingService.class);
+    private final DeviceHourlyAggregator aggregator;
     private final DeviceKeyRepository keys;
     private final DeviceReadingRepository readings;
     private final DeviceRateLimiter limiter;
     private final Clock clock;
 
-    public DeviceReadingService(DeviceKeyRepository keys, DeviceReadingRepository readings, DeviceRateLimiter limiter, Clock clock) {
-        this.keys = keys; this.readings = readings; this.limiter = limiter; this.clock = clock;
+    public DeviceReadingService(DeviceKeyRepository keys, DeviceReadingRepository readings, DeviceRateLimiter limiter, Clock clock, DeviceHourlyAggregator aggregator) {
+        this.keys = keys; this.readings = readings; this.limiter = limiter; this.clock = clock; this.aggregator = aggregator;
     }
 
     @Transactional
@@ -37,21 +43,45 @@ public class DeviceReadingService {
         validate("rawPh", request.rawPh(), 14, accepted, rejected);
         validate("treatedPh", request.treatedPh(), 14, accepted, rejected);
         if (accepted.isEmpty()) throw new BusinessException("Nenhuma leitura valida");
+        List<DeviceReadingResponse.FieldResult> discarded = new ArrayList<>();
         if (accepted.contains("heightCm")) {
             BigDecimal flow = FlowRateCalculator.flowLitersFromHeightCm(request.heightCm());
-            readings.save(new DeviceReading(key, DeviceReadingType.FLOW, request.heightCm(), flow, measuredAt));
-            if (key.getLastFlowAt() == null || !measuredAt.isBefore(key.getLastFlowAt())) key.recordLiveFlow(request.heightCm(), flow, measuredAt);
+            if (store(key, DeviceReadingType.FLOW, "heightCm", request.heightCm(), flow, measuredAt, now, discarded)
+                    && (key.getLastFlowAt() == null || !measuredAt.isBefore(key.getLastFlowAt()))) key.recordLiveFlow(request.heightCm(), flow, measuredAt);
         }
         if (accepted.contains("rawPh")) {
-            readings.save(new DeviceReading(key, DeviceReadingType.PH_RAW, request.rawPh(), null, measuredAt));
-            if (key.getLastRawPhAt() == null || !measuredAt.isBefore(key.getLastRawPhAt())) key.recordLivePh(request.rawPh(), null, measuredAt);
+            if (store(key, DeviceReadingType.PH_RAW, "rawPh", request.rawPh(), null, measuredAt, now, discarded)
+                    && (key.getLastRawPhAt() == null || !measuredAt.isBefore(key.getLastRawPhAt()))) key.recordLivePh(request.rawPh(), null, measuredAt);
         }
         if (accepted.contains("treatedPh")) {
-            readings.save(new DeviceReading(key, DeviceReadingType.PH_TREATED, request.treatedPh(), null, measuredAt));
-            if (key.getLastTreatedPhAt() == null || !measuredAt.isBefore(key.getLastTreatedPhAt())) key.recordLivePh(null, request.treatedPh(), measuredAt);
+            if (store(key, DeviceReadingType.PH_TREATED, "treatedPh", request.treatedPh(), null, measuredAt, now, discarded)
+                    && (key.getLastTreatedPhAt() == null || !measuredAt.isBefore(key.getLastTreatedPhAt()))) key.recordLivePh(null, request.treatedPh(), measuredAt);
         }
         key.recordSeen(now);
-        return new DeviceReadingResponse(List.copyOf(accepted), List.copyOf(rejected), List.of());
+        return new DeviceReadingResponse(List.copyOf(accepted), List.copyOf(rejected), List.copyOf(discarded));
+    }
+
+    private boolean store(DeviceKey key, DeviceReadingType type, String field, BigDecimal value, BigDecimal flow,
+                       Instant measuredAt, Instant now, List<DeviceReadingResponse.FieldResult> discarded) {
+        Instant currentHour = ZonedDateTime.ofInstant(now, SchedulingConfig.APP_ZONE)
+                .withMinute(0).withSecond(0).withNano(0).toInstant();
+        if (!measuredAt.isBefore(currentHour)) {
+            readings.save(new DeviceReading(key, type, value, flow, measuredAt));
+            return true;
+        }
+        DeviceHourlyAggregator.MergeOutcome outcome = aggregator.mergeLate(key, type, measuredAt, value, flow, now);
+        String reason = switch (outcome) {
+            case DISCARDED_EDITED -> "EDITED";
+            case DISCARDED_DELETED -> "DELETED";
+            case DISCARDED_TOO_OLD -> "TOO_OLD";
+            default -> null;
+        };
+        if (reason != null) {
+            discarded.add(new DeviceReadingResponse.FieldResult(field, reason));
+            log.info("Discarded late device reading: key={}, field={}, reason={}", key.getId(), field, reason);
+            return false;
+        }
+        return true;
     }
 
     private void validate(String field, BigDecimal value, int max, List<String> accepted, List<DeviceReadingResponse.FieldResult> rejected) {

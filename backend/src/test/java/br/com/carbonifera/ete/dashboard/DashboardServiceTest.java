@@ -54,6 +54,37 @@ import static org.mockito.Mockito.when;
 class DashboardServiceTest {
 
     @Test
+    void liveCardsCompeteWithStoredMeasurementsWithoutChangingAggregates() {
+        Instant now = Instant.parse("2026-07-01T15:00:00Z");
+        Station station = station(UUID.randomUUID(), "ETE");
+        AppUser admin = user(UserRole.ADMIN, station);
+        var context = context(List.of(station), admin, now);
+        var stored = flowMeasurement(station, "10", now.minusSeconds(60), admin);
+        when(context.flowMeasurementRepository().findTopByStationInAndDeletedFalseOrderByMeasuredAtDesc(anyCollection()))
+                .thenReturn(Optional.of(stored));
+        var key = new br.com.carbonifera.ete.device.DeviceKey(station, "sensor", "a", "b", admin);
+        key.recordLiveFlow(BigDecimal.ONE, new BigDecimal("20"), now.minusSeconds(30));
+        key.recordLivePh(new BigDecimal("7"), new BigDecimal("8"), now.minusSeconds(30));
+        when(context.deviceKeys().findAllByStationIn(List.of(station))).thenReturn(List.of());
+        var withoutLive = context.service().dashboard(station.getId(), false, UserPrincipal.from(admin));
+        when(context.deviceKeys().findAllByStationIn(List.of(station))).thenReturn(List.of(key));
+        var withLive = context.service().dashboard(station.getId(), false, UserPrincipal.from(admin));
+        assertThat(withLive.latestFlow().value()).isEqualByComparingTo("20");
+        assertThat(withLive.latestFlow().measuredAt()).isEqualTo(now.minusSeconds(30));
+        assertThat(withLive.latestRawPh().value()).isEqualByComparingTo("7");
+        assertThat(withLive.latestTreatedPh().value()).isEqualByComparingTo("8");
+        assertThat(withLive.currentDayAverages()).isEqualTo(withoutLive.currentDayAverages());
+        assertThat(withLive.series()).isEqualTo(withoutLive.series());
+        assertThat(withLive.activity()).isEqualTo(withoutLive.activity());
+        when(context.flowMeasurementRepository().findTopByStationInAndDeletedFalseOrderByMeasuredAtDesc(anyCollection()))
+                .thenReturn(Optional.of(flowMeasurement(station, "30", now, admin)));
+        assertThat(context.service().dashboard(station.getId(), false, UserPrincipal.from(admin)).latestFlow().value())
+                .isEqualByComparingTo("30");
+        when(context.deviceKeys().findAllByStationIn(List.of(station))).thenReturn(List.of());
+        assertThat(context.service().dashboard(station.getId(), false, UserPrincipal.from(admin)).latestRawPh()).isNull();
+    }
+
+    @Test
     void springCanInstantiateDashboardServiceBean() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(StationService.class, () -> mock(StationService.class));
@@ -64,6 +95,7 @@ class DashboardServiceTest {
             context.registerBean(StoppageRepository.class, () -> mock(StoppageRepository.class));
             context.registerBean(ShiftCalculator.class, () -> mock(ShiftCalculator.class));
             context.registerBean(StationScopeService.class, () -> mock(StationScopeService.class));
+            context.registerBean(br.com.carbonifera.ete.device.DeviceLiveReadingService.class, () -> mock(br.com.carbonifera.ete.device.DeviceLiveReadingService.class));
             context.register(DashboardService.class);
 
             context.refresh();
@@ -680,6 +712,7 @@ class DashboardServiceTest {
         when(stoppageRepository.findOverlapping(any(Instant.class), any(Instant.class), nullable(UUID.class)))
                 .thenReturn(List.of());
 
+        var deviceKeys = mock(br.com.carbonifera.ete.device.DeviceKeyRepository.class);
         DashboardService service = new DashboardService(
                 stationService,
                 limeService,
@@ -689,7 +722,8 @@ class DashboardServiceTest {
                 stoppageRepository,
                 shiftCalculator,
                 stationScopeService,
-                Clock.fixed(now, ZoneId.of("America/Sao_Paulo"))
+                Clock.fixed(now, ZoneId.of("America/Sao_Paulo")),
+                new br.com.carbonifera.ete.device.DeviceLiveReadingService(deviceKeys)
         );
         return new DashboardServiceTestContext(
                 service,
@@ -697,7 +731,8 @@ class DashboardServiceTest {
                 limeRecordRepository,
                 phMeasurementRepository,
                 flowMeasurementRepository,
-                stoppageRepository
+                stoppageRepository,
+                deviceKeys
         );
     }
 
@@ -756,7 +791,8 @@ class DashboardServiceTest {
             LimeRecordRepository limeRecordRepository,
             PhMeasurementRepository phMeasurementRepository,
             FlowMeasurementRepository flowMeasurementRepository,
-            StoppageRepository stoppageRepository
+            StoppageRepository stoppageRepository,
+            br.com.carbonifera.ete.device.DeviceKeyRepository deviceKeys
     ) {
     }
 

@@ -1,5 +1,7 @@
 package br.com.carbonifera.ete.dashboard;
 
+import br.com.carbonifera.ete.device.DeviceLiveReadingService;
+import br.com.carbonifera.ete.device.DeviceReadingType;
 import br.com.carbonifera.ete.lime.LimeRecord;
 import br.com.carbonifera.ete.lime.LimeRecordRepository;
 import br.com.carbonifera.ete.lime.LimeRecordType;
@@ -55,6 +57,7 @@ public class DashboardService {
     private final ShiftCalculator shiftCalculator;
     private final StationScopeService stationScopeService;
     private final Clock clock;
+    private final DeviceLiveReadingService liveReadings;
 
     @Autowired
     public DashboardService(
@@ -65,7 +68,8 @@ public class DashboardService {
             FlowMeasurementRepository flowMeasurementRepository,
             StoppageRepository stoppageRepository,
             ShiftCalculator shiftCalculator,
-            StationScopeService stationScopeService
+            StationScopeService stationScopeService,
+            DeviceLiveReadingService liveReadings
     ) {
         this(
                 stationService,
@@ -76,7 +80,7 @@ public class DashboardService {
                 stoppageRepository,
                 shiftCalculator,
                 stationScopeService,
-                Clock.system(BUSINESS_ZONE)
+                Clock.system(BUSINESS_ZONE), liveReadings
         );
     }
 
@@ -89,7 +93,8 @@ public class DashboardService {
             StoppageRepository stoppageRepository,
             ShiftCalculator shiftCalculator,
             StationScopeService stationScopeService,
-            Clock clock
+            Clock clock,
+            DeviceLiveReadingService liveReadings
     ) {
         this.stationService = stationService;
         this.limeService = limeService;
@@ -100,6 +105,7 @@ public class DashboardService {
         this.shiftCalculator = shiftCalculator;
         this.stationScopeService = stationScopeService;
         this.clock = clock;
+        this.liveReadings = liveReadings;
     }
 
     @Transactional(readOnly = true)
@@ -202,21 +208,29 @@ public class DashboardService {
     }
 
     private DashboardMeasurementResponse latestRawPh(List<Station> stations) {
-        return phMeasurementRepository.findTopByStationInAndTypeAndDeletedFalseOrderByMeasuredAtDesc(stations, PhWaterType.RAW)
+        return latest(phMeasurementRepository.findTopByStationInAndTypeAndDeletedFalseOrderByMeasuredAtDesc(stations, PhWaterType.RAW)
                 .map(this::phResponse)
-                .orElse(null);
+                .orElse(null), stations, DeviceReadingType.PH_RAW, "pH");
     }
 
     private DashboardMeasurementResponse latestTreatedPh(List<Station> stations) {
-        return phMeasurementRepository.findTopByStationInAndTypeAndDeletedFalseOrderByMeasuredAtDesc(stations, PhWaterType.TREATED)
+        return latest(phMeasurementRepository.findTopByStationInAndTypeAndDeletedFalseOrderByMeasuredAtDesc(stations, PhWaterType.TREATED)
                 .map(this::phResponse)
-                .orElse(null);
+                .orElse(null), stations, DeviceReadingType.PH_TREATED, "pH");
     }
 
     private DashboardMeasurementResponse latestFlow(List<Station> stations) {
-        return flowMeasurementRepository.findTopByStationInAndDeletedFalseOrderByMeasuredAtDesc(stations)
+        return latest(flowMeasurementRepository.findTopByStationInAndDeletedFalseOrderByMeasuredAtDesc(stations)
                 .map(this::flowResponse)
-                .orElse(null);
+                .orElse(null), stations, DeviceReadingType.FLOW, "L");
+    }
+
+    private DashboardMeasurementResponse latest(DashboardMeasurementResponse stored, List<Station> stations,
+                                                DeviceReadingType type, String unit) {
+        DeviceLiveReadingService.LiveReading live = liveReadings.latest(stations).get(type);
+        if (live == null || (stored != null && !live.measuredAt().isAfter(stored.measuredAt()))) return stored;
+        return new DashboardMeasurementResponse(live.station().getId(), live.station().getName(),
+                live.value(), unit, live.measuredAt());
     }
 
     private DashboardCurrentDayAveragesResponse currentDayAverages(List<Station> stations, Instant now, boolean includePh) {

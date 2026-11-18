@@ -12,15 +12,37 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class DeviceReadingServiceTest {
-    final Instant now = Instant.parse("2026-01-01T12:00:00Z");
+    final Instant now = Instant.parse("2026-01-01T12:30:00Z");
     final UUID id = UUID.randomUUID();
     DeviceKeyRepository keys = mock(DeviceKeyRepository.class);
     DeviceReadingRepository readings = mock(DeviceReadingRepository.class);
     DeviceRateLimiter limiter = mock(DeviceRateLimiter.class);
     DeviceKey key = new DeviceKey(new Station("ETE", "ete"), "device", "encrypted", "hash", null);
-    DeviceReadingService service = new DeviceReadingService(keys, readings, limiter, Clock.fixed(now, ZoneOffset.UTC));
+    DeviceHourlyAggregator aggregator = mock(DeviceHourlyAggregator.class);
+    DeviceReadingService service = new DeviceReadingService(keys, readings, limiter, Clock.fixed(now, ZoneOffset.UTC), aggregator);
     @BeforeEach void setup() { when(limiter.allow(id)).thenReturn(true); when(keys.lockById(id)).thenReturn(Optional.of(key)); }
     BigDecimal n(String value) { return new BigDecimal(value); }
+    @Test void closedHourDelegatesAndReportsDiscardReasons() {
+        Instant measured = now.minusSeconds(3600);
+        when(aggregator.mergeLate(eq(key), eq(DeviceReadingType.FLOW), eq(measured), any(), any(), eq(now)))
+                .thenReturn(DeviceHourlyAggregator.MergeOutcome.DISCARDED_EDITED);
+        when(aggregator.mergeLate(eq(key), eq(DeviceReadingType.PH_RAW), eq(measured), any(), isNull(), eq(now)))
+                .thenReturn(DeviceHourlyAggregator.MergeOutcome.DISCARDED_DELETED);
+        when(aggregator.mergeLate(eq(key), eq(DeviceReadingType.PH_TREATED), eq(measured), any(), isNull(), eq(now)))
+                .thenReturn(DeviceHourlyAggregator.MergeOutcome.DISCARDED_TOO_OLD);
+        var result = service.receive(id, new DeviceReadingRequest(n("10"), n("7"), n("8"), measured));
+        assertThat(result.discarded()).extracting(DeviceReadingResponse.FieldResult::reason)
+                .containsExactly("EDITED", "DELETED", "TOO_OLD");
+        verify(aggregator).mergeLate(key, DeviceReadingType.FLOW, measured, n("10"), n("19.76"), now);
+        verifyNoInteractions(readings);
+        assertThat(key.getLastFlowAt()).isNull();
+    }
+    @Test void exactHourBelongsToNewWindow() {
+        Instant measured = Instant.parse("2026-01-01T12:00:00Z");
+        service.receive(id, new DeviceReadingRequest(null, n("7"), null, measured));
+        verify(readings).save(any());
+        verifyNoInteractions(aggregator);
+    }
     @Test void acceptsOnlyValidFieldsAndUpdatesLiveState() {
         var result = service.receive(id, new DeviceReadingRequest(n("10"), n("14.5"), n("7.123"), null));
         assertThat(result.accepted()).containsExactly("heightCm");
