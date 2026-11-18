@@ -102,11 +102,13 @@ class DeviceEndToEndIntegrationTest {
         JsonNode before = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
         clock.now = clock.now.plusSeconds(60);
         request(post("/api/device/readings").header("Authorization", device).contentType(MediaType.APPLICATION_JSON).content("{\"heightCm\":30}"));
+        clock.now = clock.now.plusSeconds(60);
+        request(post("/api/device/readings").header("Authorization", device).contentType(MediaType.APPLICATION_JSON).content("{\"heightCm\":40}"));
         JsonNode after = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
         assertThat(after.path("currentDayAverages").path("flowTotalToday")).isEqualTo(before.path("currentDayAverages").path("flowTotalToday"));
         assertThat(after.path("series")).isEqualTo(before.path("series"));
         assertThat(after.path("latestFlow").path("measuredAt").asText()).isEqualTo(clock.instant().toString());
-        assertThat(after.path("latestFlow").path("value")).isNotEqualTo(before.path("latestFlow").path("value"));
+        assertThat(after.path("latestFlow").path("value").decimalValue()).isEqualByComparingTo("237.93");
         for (String route : new String[]{"/api/flow-measurements", "/api/dashboard", "/api/device-keys"}) {
             mvc.perform(get(route).header("Authorization", device)).andExpect(status().isForbidden());
         }
