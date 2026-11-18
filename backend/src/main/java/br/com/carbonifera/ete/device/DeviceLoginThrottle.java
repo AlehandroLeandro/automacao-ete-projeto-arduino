@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /**
  * Single-process limiter. At capacity, unknown IPs are blocked until space expires;
@@ -16,6 +18,7 @@ import java.util.TreeSet;
  * Callers must coordinate the check/authentication/result sequence per IP: the
  * individual methods are atomic, but a sequence of separate calls is not.
  */
+@Component
 public class DeviceLoginThrottle {
 
     private static final int FAILURE_LIMIT = 10;
@@ -29,6 +32,7 @@ public class DeviceLoginThrottle {
     private final NavigableSet<IpState> expirations = new TreeSet<>(
             Comparator.comparing((IpState state) -> state.expiresAt).thenComparing(state -> state.ip));
 
+    @Autowired
     public DeviceLoginThrottle(Clock clock) {
         this(clock, MAX_TRACKED_IPS);
     }
