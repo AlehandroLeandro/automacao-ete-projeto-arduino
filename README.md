@@ -76,7 +76,9 @@ curl -X POST https://ete.example.com/api/auth/device-login \
   -d '{"key":"SUA_CHAVE_DE_24_CARACTERES"}'
 ```
 
-A resposta bem-sucedida tem o formato `{"accessToken": string, "tokenType": string, "expiresInSeconds": number}`. Nao ha refresh token: ao expirar o token ou receber `401`, refaca o login com a chave. O `401` de login e generico; `429` indica IP bloqueado por 15 minutos e nao possui corpo informativo.
+A resposta bem-sucedida tem o formato `{"accessToken": string, "tokenType": string, "expiresInSeconds": number}`. O JWT tem subject `device:<id>` e claims `role=DEVICE`, `deviceKeyId`, `stationId` e `tokenType=access`. Nao ha refresh token: ao expirar o token ou receber `401`, refaca o login com a chave. O `401` de login e generico e identico para chave desconhecida, desativada ou malformada e para corpo sem `key`. Dez falhas em cinco minutos bloqueiam o IP por 15 minutos; enquanto bloqueado, o login responde `429` sem corpo informativo e sem revelar se a chave existe.
+
+Os erros usam o formato `ApiError`: `{"timestamp": string, "status": number, "error": string, "message": string, "path": string, "fields": [{"field": string, "message": string}]}`. A resposta `429` do login nao traz corpo informativo.
 
 Envie os dados para `POST /api/device/readings` com `Authorization: Bearer <accessToken>` de dispositivo (`DEVICE`). O corpo tem os campos opcionais abaixo; pelo menos uma leitura numerica valida deve ser enviada:
 
@@ -101,6 +103,6 @@ Uma resposta `200` tem o formato:
 {"accepted": string[], "rejected": [{"field": string, "reason": string}], "discarded": [{"field": string, "reason": "EDITED" | "DELETED" | "TOO_OLD"}]}
 ```
 
-`accepted` lista campos validos; `rejected` informa campos invalidos e seus motivos. `discarded` informa leituras tardias descartadas porque o registro foi editado (`EDITED`), excluido (`DELETED`) ou e antigo demais (`TOO_OLD`); um campo validado pode aparecer tambem em `discarded`.
+`accepted` lista campos validos; `rejected` informa campos invalidos e seus motivos. `discarded` informa leituras tardias descartadas porque o registro foi editado (`EDITED`), excluido (`DELETED`) ou e antigo demais (`TOO_OLD`); um campo validado pode aparecer tambem em `discarded`. O descarte mantem a resposta `200` e gera log. Uma leitura exatamente as 15:00:00 pertence a janela que comeca as 15:00, no fuso `America/Sao_Paulo`.
 
 O envio retorna `400` se nao houver valor valido ou o horario estiver no futuro; `401` para token ou chave invalidos (refaca o login com a chave); `403` para usuario humano; e `429` quando o limite por dispositivo for excedido (padrao: 10 por minuto).
