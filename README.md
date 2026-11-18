@@ -103,6 +103,6 @@ Uma resposta `200` tem o formato:
 {"accepted": string[], "rejected": [{"field": string, "reason": string}], "discarded": [{"field": string, "reason": "EDITED" | "DELETED" | "TOO_OLD"}]}
 ```
 
-`accepted` lista campos validos; `rejected` informa campos invalidos e seus motivos. `discarded` informa leituras tardias descartadas porque o registro foi editado (`EDITED`), excluido (`DELETED`) ou e antigo demais (`TOO_OLD`); um campo validado pode aparecer tambem em `discarded`. O descarte mantem a resposta `200` e gera log. Uma leitura exatamente as 15:00:00 pertence a janela que comeca as 15:00, no fuso `America/Sao_Paulo`.
+`accepted` lista campos validos que foram armazenados ou incorporados; `rejected` informa campos invalidos e seus motivos. `discarded` informa leituras tardias descartadas porque o registro foi editado (`EDITED`), excluido (`DELETED`) ou e antigo demais (`TOO_OLD`); campos descartados nao aparecem em `accepted`. O descarte mantem a resposta `200` e gera log. Uma leitura exatamente as 15:00:00 pertence a janela que comeca as 15:00, no fuso `America/Sao_Paulo`.
 
 O envio retorna `400` se nao houver valor valido ou o horario estiver no futuro; `401` para token ou chave invalidos (refaca o login com a chave); `403` para usuario humano; e `429` quando o limite por dispositivo for excedido (padrao: 10 por minuto).
