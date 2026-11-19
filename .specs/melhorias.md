@@ -1,4 +1,6 @@
 # Conexão com arduino
+- [x] Conexão com Arduino por chave de dispositivo (login, leituras, tela Automação) → #1 (backend), #2 (frontend)
+
 irei dar um paço adiante no projeto, vou fazer a coleta de informações em tempo real por meio de sensores e arduíno. quero permitir que o sistema receba as informações do arduíno. para evitar de ter que criar um usuário para o arduíno, quero que ele faça a autenticação por meio de uma chave.
 essa chave vai ser colocada no código do arduíno e ele vai enviar ela para fazer seu login. após logado ele continua usando o sistema por meio dos jwt tokens que irão na requisição de forma automática.
 
