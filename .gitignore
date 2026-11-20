@@ -2,6 +2,7 @@
 .env.*
 !.env-example
 !.env.example
+firmware/config.h
 
 backend/target/
 backend/.mvn/wrapper/maven-wrapper.jar
