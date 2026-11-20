@@ -167,6 +167,7 @@ class FlowMeasurementServiceTest {
     @Test
     void updateAllowsMeasuredAtEqualToCurrentTime() {
         FlowMeasurement measurement = flowMeasurement(new BigDecimal("1200.00"));
+        measurement.mergeTimeEstimate("ELAPSED_TIME");
         FlowMeasurementUpdateRequest request = new FlowMeasurementUpdateRequest(
                 station.getId(),
                 new BigDecimal("10.00"),
@@ -181,6 +182,8 @@ class FlowMeasurementServiceTest {
         FlowMeasurementResponse response = service.update(measurement.getId(), request, principal);
 
         assertThat(response.measuredAt()).isEqualTo(CURRENT_TIME);
+        assertThat(response.timeEstimated()).isFalse();
+        assertThat(response.timeEstimateOrigin()).isNull();
     }
 
     @Test

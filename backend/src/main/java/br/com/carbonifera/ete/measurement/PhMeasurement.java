@@ -127,6 +127,7 @@ public class PhMeasurement {
         this.type = type;
         this.ph = ph;
         this.measuredAt = measuredAt;
+        this.timeEstimateOrigin = null;
     }
 
     public void mergeDeviceReading(BigDecimal ph, int sampleCount) {

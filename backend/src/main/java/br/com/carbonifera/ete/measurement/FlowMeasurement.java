@@ -116,6 +116,7 @@ public class FlowMeasurement {
         this.station = station;
         this.flowLiters = flowLiters;
         this.measuredAt = measuredAt;
+        this.timeEstimateOrigin = null;
     }
 
     public void mergeDeviceReading(BigDecimal flowLiters, BigDecimal heightCm, int sampleCount) {

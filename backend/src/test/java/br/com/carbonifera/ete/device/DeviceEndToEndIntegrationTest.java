@@ -110,6 +110,7 @@ class DeviceEndToEndIntegrationTest {
         assertThat(after.path("latestFlow").path("measuredAt").asText()).isEqualTo(clock.instant().toString());
         assertThat(after.path("latestFlow").path("value").decimalValue()).isEqualByComparingTo("237.93");
         String batch = "{\"readings\":[{\"id\":\"sample-1\",\"heightCm\":10,\"rawPh\":20,\"timeEstimated\":true}]}";
+        long readingsBeforeBatch = readings.count();
         JsonNode firstBatch = request(post("/api/device/readings/batch").header("Authorization", device)
                 .contentType(MediaType.APPLICATION_JSON).content(batch));
         assertThat(firstBatch.path("results").get(0).path("accepted").get(0).asText()).isEqualTo("heightCm");
@@ -117,10 +118,13 @@ class DeviceEndToEndIntegrationTest {
         JsonNode estimatedDashboard = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
         assertThat(estimatedDashboard.path("latestFlow").path("timeEstimated").asBoolean()).isTrue();
         assertThat(estimatedDashboard.path("latestFlow").path("timeEstimateOrigin").asText()).isEqualTo("RECEIVED_AT");
+        long readingsAfterFirstBatch = readings.count();
+        assertThat(readingsAfterFirstBatch).isEqualTo(readingsBeforeBatch + 1);
         JsonNode repeated = request(post("/api/device/readings/batch").header("Authorization", device)
                 .contentType(MediaType.APPLICATION_JSON).content(batch));
         assertThat(repeated.path("results").get(0).path("duplicate").asBoolean()).isTrue();
         assertThat(repeated.path("results").get(0).path("accepted")).isEqualTo(firstBatch.path("results").get(0).path("accepted"));
+        assertThat(readings.count()).isEqualTo(readingsAfterFirstBatch);
         mvc.perform(post("/api/device/readings/batch").header("Authorization", device).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"readings\":[{\"id\":\"a\",\"timeEstimated\":true},{\"id\":\"a\",\"timeEstimated\":true}]}"))
                 .andExpect(status().isBadRequest());

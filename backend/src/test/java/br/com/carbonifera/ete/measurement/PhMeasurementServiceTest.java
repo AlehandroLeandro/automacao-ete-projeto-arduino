@@ -500,6 +500,7 @@ class PhMeasurementServiceTest {
     @Test
     void operatorUpdatesOwnTreatedMeasurementOutsideRecordWindowToADateAlsoOutsideTheWindow() {
         PhMeasurement measurement = phMeasurement(station, PhWaterType.TREATED, new BigDecimal("6.80"), OUTSIDE_WINDOW_TIME);
+        measurement.mergeTimeEstimate("RECEIVED_AT");
         Instant newMeasuredAt = OUTSIDE_WINDOW_TIME.minusSeconds(3600);
         PhMeasurementUpdateRequest request = new PhMeasurementUpdateRequest(
                 station.getId(),
@@ -517,6 +518,8 @@ class PhMeasurementServiceTest {
         PhMeasurementResponse response = service.update(measurement.getId(), request, operatorPrincipal);
 
         assertThat(response.measuredAt()).isEqualTo(newMeasuredAt);
+        assertThat(response.timeEstimated()).isFalse();
+        assertThat(response.timeEstimateOrigin()).isNull();
         assertThat(response.ph()).isEqualByComparingTo(new BigDecimal("6.90"));
         assertThat(response.type()).isEqualTo(PhWaterType.TREATED);
     }
