@@ -118,6 +118,12 @@ class DeviceEndToEndIntegrationTest {
                 .content("{\"heightCm\":10}")).andExpect(status().isUnauthorized());
         mvc.perform(delete("/api/device-keys/" + id).header("Authorization", bearer(auth[1]))).andExpect(status().isNoContent());
         assertThat(keys.findById(UUID.fromString(id))).isEmpty();
+        FlowMeasurement latestStored = flows.findAll().stream()
+                .filter(f -> "Sensor E2E".equals(f.getDeviceName()))
+                .max(java.util.Comparator.comparing(FlowMeasurement::getMeasuredAt)).orElseThrow();
+        JsonNode afterDeletion = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
+        assertThat(afterDeletion.path("latestFlow").path("value").decimalValue()).isEqualByComparingTo(latestStored.getFlowLiters());
+        assertThat(afterDeletion.path("latestFlow").path("measuredAt").asText()).isEqualTo(latestStored.getMeasuredAt().toString());
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
             FlowMeasurement retained = flows.findById(average.getId()).orElseThrow();
             assertThat(retained.getDeviceName()).isEqualTo("Sensor E2E");
