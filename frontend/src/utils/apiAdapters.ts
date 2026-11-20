@@ -52,8 +52,10 @@ export interface ApiPhMeasurementResponse {
   type: ApiPhWaterType;
   ph: number | string;
   measuredAt: string;
-  createdById: string;
-  createdByName: string;
+  createdById: string | null;
+  createdByName: string | null;
+  deviceName?: string | null;
+  sampleCount?: number | null;
 }
 
 export interface ApiPhMeasurementDetailResponse {
@@ -69,8 +71,10 @@ export interface ApiFlowMeasurementResponse {
   stationName: string;
   flowLiters: number | string;
   measuredAt: string;
-  createdById: string;
-  createdByName: string;
+  createdById: string | null;
+  createdByName: string | null;
+  deviceName?: string | null;
+  sampleCount?: number | null;
 }
 
 export interface ApiFlowMeasurementDetailResponse {
@@ -216,7 +220,7 @@ export function apiPhMeasurementResponseToPhRecord(response: ApiPhMeasurementRes
     kind: apiPhWaterTypeToMeasurementKind(response.type),
     ph: decimalToNumber(response.ph),
     collectedAt: response.measuredAt,
-    operator: response.createdByName,
+    operator: response.createdByName ?? "Autor desconhecido",
   };
 }
 
@@ -233,7 +237,7 @@ export function apiFlowMeasurementResponseToFlowRecord(response: ApiFlowMeasurem
     station: response.stationName,
     liters: decimalToNumber(response.flowLiters),
     collectedAt: response.measuredAt,
-    operator: response.createdByName,
+    operator: response.createdByName ?? "Autor desconhecido",
   };
 }
 

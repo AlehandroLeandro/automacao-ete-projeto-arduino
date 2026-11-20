@@ -20,3 +20,13 @@ test("projects a complete queued stoppage into an active stop record", () => {
 test("returns undefined for an incomplete queued stoppage", () => {
   assert.equal(pendingRecordFromQueueItem(item({ reasonDetail: "Bomba", startAt: "2026-09-09T10:00:00Z" }), "ETE A"), undefined);
 });
+
+import { apiPhMeasurementResponseToPhRecord, apiFlowMeasurementResponseToFlowRecord } from "../../src/utils/apiAdapters";
+test("measurement authors support humans, devices and null names", () => {
+  const base = { id: "1", stationId: "s", stationName: "ETE", measuredAt: "2026-01-01T00:00:00Z" };
+  for (const [createdById, createdByName, expected] of [["user", "Operador", "Operador"], [null, "Equipamento: Sensor", "Equipamento: Sensor"], [null, null, "Autor desconhecido"]] as const) {
+    const author = { createdById, createdByName, deviceName: null, sampleCount: null };
+    assert.equal(apiPhMeasurementResponseToPhRecord({ ...base, ...author, type: "RAW", ph: 7 }).operator, expected);
+    assert.equal(apiFlowMeasurementResponseToFlowRecord({ ...base, ...author, flowLiters: 10 }).operator, expected);
+  }
+});
