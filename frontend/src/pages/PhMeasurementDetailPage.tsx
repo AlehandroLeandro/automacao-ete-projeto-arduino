@@ -1,3 +1,4 @@
+import { withTimeEstimate } from "../utils/timeEstimate";
 import { ArrowLeft } from "lucide-react";
 import { useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -77,7 +78,7 @@ export function PhMeasurementDetailPage() {
           </div>
           <div>
             <dt>Coleta</dt>
-            <dd>{formatDateTime(record.collectedAt)}</dd>
+            <dd>{withTimeEstimate(formatDateTime(record.collectedAt), record)}</dd>
           </div>
           <div>
             <dt>Operador</dt>

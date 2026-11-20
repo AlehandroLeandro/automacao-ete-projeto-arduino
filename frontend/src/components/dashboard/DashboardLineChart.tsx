@@ -1,6 +1,9 @@
+import { timeEstimateLabel } from "../../utils/timeEstimate";
 import { useMemo } from "react";
 
 export interface DashboardLinePoint {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   measuredAt: string;
   value: number;
 }
@@ -21,6 +24,8 @@ interface DashboardLineChartProps {
 }
 
 interface ChartPoint {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   id: string;
   x: number;
   y: number;
@@ -91,6 +96,13 @@ export function DashboardLineChart({
         ) : null}
       </header>
 
+      {chartModel.series.some((item) => item.points.some((point) => point.timeEstimated)) ? (
+        <ul aria-label="Horários estimados no gráfico">
+          {chartModel.series.flatMap((item) => item.points.filter((point) => point.timeEstimated).map((point) => (
+            <li key={point.id}>{item.label}: {new Date(point.measuredAt).toLocaleString("pt-BR")} — {formatTickValue(point.value)} — {timeEstimateLabel(point)}</li>
+          )))}
+        </ul>
+      ) : null}
       <svg
         aria-label={ariaLabel}
         className="dashboard-line-chart__svg"
@@ -121,9 +133,7 @@ export function DashboardLineChart({
                 <path d={item.path} fill="none" stroke={item.color} strokeLinecap="round" strokeLinejoin="round" />
                 {item.points.map((point) => (
                   <circle cx={point.x} cy={point.y} fill={item.color} key={point.id} r="3.5">
-                    <title>
-                      {item.label}: {formatTickValue(point.value)}
-                    </title>
+                    <title>{`${item.label}: ${formatTickValue(point.value)}`}</title>
                   </circle>
                 ))}
               </g>
@@ -220,6 +230,8 @@ function toChartSeries(
     return {
       id: `${series.id}-${point.measuredAt}-${index}`,
       measuredAt: point.measuredAt,
+      timeEstimated: point.timeEstimated,
+      timeEstimateOrigin: point.timeEstimateOrigin,
       value: point.value,
       x,
       y,

@@ -142,6 +142,8 @@ export interface DashboardSnapshot {
 export type MeasurementKind = "input" | "output";
 
 export interface PhRecord {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   id: string;
   station: string;
   kind: MeasurementKind;
@@ -155,6 +157,8 @@ export interface PhRecord {
 }
 
 export interface FlowRecord {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   id: string;
   station: string;
   liters: number;

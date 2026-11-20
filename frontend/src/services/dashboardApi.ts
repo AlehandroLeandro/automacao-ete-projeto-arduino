@@ -14,6 +14,8 @@ export interface DashboardRequestParams {
 }
 
 export interface DashboardMeasurementResponse {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   stationId: string;
   stationName: string;
   value?: number | string | null;
@@ -22,6 +24,8 @@ export interface DashboardMeasurementResponse {
 }
 
 export interface DashboardMeasurementAverageResponse {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   value?: number | string | null;
   unit: string;
   sampleCount: number;
@@ -42,6 +46,8 @@ export interface DashboardCurrentDayAveragesResponse {
 }
 
 export interface DashboardSeriesPointResponse {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   measuredAt: string;
   value: number | string;
 }

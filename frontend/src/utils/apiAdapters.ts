@@ -46,6 +46,8 @@ export interface ApiAuditEventResponse {
 }
 
 export interface ApiPhMeasurementResponse {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   id: string;
   stationId: string;
   stationName: string;
@@ -66,6 +68,8 @@ export interface ApiPhMeasurementDetailResponse {
 }
 
 export interface ApiFlowMeasurementResponse {
+  timeEstimated?: boolean;
+  timeEstimateOrigin?: string | null;
   id: string;
   stationId: string;
   stationName: string;
@@ -220,6 +224,8 @@ export function apiPhMeasurementResponseToPhRecord(response: ApiPhMeasurementRes
     kind: apiPhWaterTypeToMeasurementKind(response.type),
     ph: decimalToNumber(response.ph),
     collectedAt: response.measuredAt,
+    timeEstimated: response.timeEstimated,
+    timeEstimateOrigin: response.timeEstimateOrigin,
     operator: response.createdByName ?? "Autor desconhecido",
   };
 }
@@ -237,6 +243,8 @@ export function apiFlowMeasurementResponseToFlowRecord(response: ApiFlowMeasurem
     station: response.stationName,
     liters: decimalToNumber(response.flowLiters),
     collectedAt: response.measuredAt,
+    timeEstimated: response.timeEstimated,
+    timeEstimateOrigin: response.timeEstimateOrigin,
     operator: response.createdByName ?? "Autor desconhecido",
   };
 }

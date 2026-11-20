@@ -1,3 +1,4 @@
+import { withTimeEstimate } from "../utils/timeEstimate";
 import { Edit3, Eye, Save, Trash2 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -154,7 +155,7 @@ export function FlowPage() {
     },
     {
       header: "Data",
-      cell: (record) => formatDateTime(record.collectedAt),
+      cell: (record) => withTimeEstimate(formatDateTime(record.collectedAt), record),
       filter: canReadAllForFilters ? (
         <DateRangeFilterContent
           value={draftDateFilter}
@@ -437,7 +438,7 @@ export function FlowPage() {
                 </div>
                 <div>
                   <dt>Data</dt>
-                  <dd>{formatDateTime(record.collectedAt)}</dd>
+                  <dd>{withTimeEstimate(formatDateTime(record.collectedAt), record)}</dd>
                 </div>
                 <div>
                   <dt>Operador</dt>

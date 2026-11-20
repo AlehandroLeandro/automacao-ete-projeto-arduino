@@ -1,3 +1,4 @@
+import { withTimeEstimate } from "../utils/timeEstimate";
 import { Box, Droplets, FileDown, Gauge, RotateCcw, Waves, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -633,21 +634,21 @@ function getLatestMetricsFromDashboard(response: DashboardResponse): MetricCardC
       value: decimalToNumber(response.limeStockBags).toLocaleString("pt-BR"),
     },
     {
-      helper: measurementHelper(response.latestRawPh?.measuredAt),
+      helper: withTimeEstimate(measurementHelper(response.latestRawPh?.measuredAt), response.latestRawPh),
       icon: Droplets,
       label: "pH entrada",
       tone: "input",
       value: formatMetricValue(measurementValue(response.latestRawPh), 2),
     },
     {
-      helper: measurementHelper(response.latestTreatedPh?.measuredAt),
+      helper: withTimeEstimate(measurementHelper(response.latestTreatedPh?.measuredAt), response.latestTreatedPh),
       icon: Droplets,
       label: "pH saída",
       tone: "output",
       value: formatMetricValue(measurementValue(response.latestTreatedPh), 2),
     },
     {
-      helper: measurementHelper(response.latestFlow?.measuredAt),
+      helper: withTimeEstimate(measurementHelper(response.latestFlow?.measuredAt), response.latestFlow),
       icon: Gauge,
       label: "Vazão",
       tone: "flow",
@@ -670,21 +671,21 @@ function getAverageMetricsFromDashboard(response: DashboardResponse): MetricCard
       value: decimalToNumber(response.limeConsumptionLastShiftBags).toLocaleString("pt-BR"),
     },
     {
-      helper: averageHelper(averageSampleCount(averages.rawPh)),
+      helper: withTimeEstimate(averageHelper(averageSampleCount(averages.rawPh)), averages.rawPh),
       icon: Droplets,
       label: "pH entrada",
       tone: "input",
       value: formatMetricValue(decimalToNumber(averages.rawPh?.value), 2),
     },
     {
-      helper: averageHelper(averageSampleCount(averages.treatedPh)),
+      helper: withTimeEstimate(averageHelper(averageSampleCount(averages.treatedPh)), averages.treatedPh),
       icon: Droplets,
       label: "pH saída",
       tone: "output",
       value: formatMetricValue(decimalToNumber(averages.treatedPh?.value), 2),
     },
     {
-      helper: averageHelper(averageSampleCount(averages.flow)),
+      helper: withTimeEstimate(averageHelper(averageSampleCount(averages.flow)), averages.flow),
       icon: Gauge,
       label: "Vazão média",
       tone: "flow",
@@ -692,7 +693,7 @@ function getAverageMetricsFromDashboard(response: DashboardResponse): MetricCard
       value: Math.round(decimalToNumber(averages.flowAverageToday)).toLocaleString("pt-BR"),
     },
     {
-      helper: "Vazão média x aferições de hoje",
+      helper: withTimeEstimate("Vazão média x aferições de hoje", averages.flow),
       icon: Waves,
       label: "Vazão total",
       tone: "flow",
@@ -700,7 +701,7 @@ function getAverageMetricsFromDashboard(response: DashboardResponse): MetricCard
       value: Math.round(decimalToNumber(averages.flowTotalToday)).toLocaleString("pt-BR"),
     },
     {
-      helper: "Vazão total / horas trabalhadas",
+      helper: withTimeEstimate("Vazão total / horas trabalhadas", averages.flow),
       icon: Gauge,
       label: "Vazão por hora",
       tone: "flow",
@@ -797,6 +798,8 @@ function seriesResponseToChartSeries(series: NonNullable<DashboardResponse["seri
     label: getShortStationLabel(series.stationName),
     points: series.points.map((point) => ({
       measuredAt: point.measuredAt,
+      timeEstimated: point.timeEstimated,
+      timeEstimateOrigin: point.timeEstimateOrigin,
       value: decimalToNumber(point.value),
     })),
   };
