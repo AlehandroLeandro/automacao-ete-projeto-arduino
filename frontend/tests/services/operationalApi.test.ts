@@ -3,10 +3,11 @@ import test from "node:test";
 
 let requestedUrl = "";
 let requestedInit: RequestInit | undefined;
+let responseBody: unknown = { content: [], totalElements: 0, totalPages: 0, number: 0 };
 globalThis.fetch = (async (input, init) => {
   requestedUrl = String(input);
   requestedInit = init;
-  return new Response(JSON.stringify({ content: [], totalElements: 0, totalPages: 0, number: 0 }), {
+  return new Response(JSON.stringify(responseBody), {
     headers: { "Content-Type": "application/json" },
   });
 }) as typeof fetch;
@@ -15,10 +16,13 @@ const {
   createFlowMeasurement,
   listFlowMeasurements,
   updateFlowMeasurement,
+  updatePhMeasurement,
   listLimeRecords,
   listPhMeasurements,
   listStoppages,
 } = await import("../../src/services/operationalApi");
+const { apiFlowMeasurementResponseToFlowRecord, apiPhMeasurementResponseToPhRecord } = await import("../../src/utils/apiAdapters");
+const { withTimeEstimate } = await import("../../src/utils/timeEstimate");
 
 const period = { endAt: "2026-01-31T23:59:59Z", startAt: "2026-01-01T00:00:00Z" };
 
@@ -124,4 +128,25 @@ test("updateFlowMeasurement includes heightCm only when provided", async () => {
   );
   assert.equal("heightCm" in withoutHeight, false);
   assert.equal("flowLiters" in withoutHeight, false);
+});
+
+test("value-only edits display the estimated time origin returned by the API", async () => {
+  const measuredAt = "2026-01-10T10:00:00Z";
+  const base = { id: "measurement-1", stationId: "station-1", stationName: "ETE", measuredAt, createdById: null, createdByName: null, timeEstimated: true, timeEstimateOrigin: "ELAPSED_TIME" };
+  const previousResponse = responseBody;
+  try {
+    responseBody = { ...base, type: "RAW", ph: 7.5 };
+    const ph = await updatePhMeasurement(base.id, { description: "Correção do valor", measuredAt, ph: 7.5, stationId: base.stationId, type: "RAW" });
+    assert.equal(JSON.parse(String(requestedInit?.body)).measuredAt, measuredAt);
+    assert.equal(ph.ph, 7.5);
+    assert.match(withTimeEstimate("Coleta", apiPhMeasurementResponseToPhRecord(ph)), /Horário estimado.*tempo decorrido/i);
+
+    responseBody = { ...base, flowLiters: 42, timeEstimateOrigin: "RECEIVED_AT" };
+    const flow = await updateFlowMeasurement(base.id, { description: "Correção do valor", heightCm: 12, measuredAt, stationId: base.stationId });
+    assert.equal(JSON.parse(String(requestedInit?.body)).measuredAt, measuredAt);
+    assert.equal(flow.flowLiters, 42);
+    assert.match(withTimeEstimate("Coleta", apiFlowMeasurementResponseToFlowRecord(flow)), /Horário estimado.*recebimento/i);
+  } finally {
+    responseBody = previousResponse;
+  }
 });
