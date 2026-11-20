@@ -126,8 +126,8 @@ public class PhMeasurement {
         this.station = station;
         this.type = type;
         this.ph = ph;
+        if (!this.measuredAt.equals(measuredAt)) this.timeEstimateOrigin = null;
         this.measuredAt = measuredAt;
-        this.timeEstimateOrigin = null;
     }
 
     public void mergeDeviceReading(BigDecimal ph, int sampleCount) {

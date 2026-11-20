@@ -160,6 +160,7 @@ class PhMeasurementServiceTest {
     @Test
     void updateRecordsUpdatedEvent() {
         PhMeasurement measurement = phMeasurement(BigDecimal.valueOf(7.10));
+        measurement.mergeTimeEstimate("RECEIVED_AT");
         PhMeasurementUpdateRequest request = new PhMeasurementUpdateRequest(
                 station.getId(),
                 PhWaterType.RAW,
@@ -172,7 +173,10 @@ class PhMeasurementServiceTest {
         when(stationScopeService.requireWritableStation(station.getId(), principal)).thenReturn(station);
         when(currentUserService.requireUser(principal)).thenReturn(user);
 
-        service.update(measurement.getId(), request, principal);
+        PhMeasurementResponse response = service.update(measurement.getId(), request, principal);
+
+        assertThat(response.timeEstimated()).isTrue();
+        assertThat(response.timeEstimateOrigin()).isEqualTo("RECEIVED_AT");
 
         verify(auditService).recordUpdate(
                 AuditRecordType.PH_MEASUREMENT,

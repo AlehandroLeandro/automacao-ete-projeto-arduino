@@ -166,7 +166,7 @@ class FlowMeasurementServiceTest {
 
     @Test
     void updateAllowsMeasuredAtEqualToCurrentTime() {
-        FlowMeasurement measurement = flowMeasurement(new BigDecimal("1200.00"));
+        FlowMeasurement measurement = flowMeasurement(station, new BigDecimal("1200.00"), CURRENT_TIME.minusSeconds(1));
         measurement.mergeTimeEstimate("ELAPSED_TIME");
         FlowMeasurementUpdateRequest request = new FlowMeasurementUpdateRequest(
                 station.getId(),
@@ -189,6 +189,7 @@ class FlowMeasurementServiceTest {
     @Test
     void updateWithHeightRecalculatesFlowAndRecordsBothChanges() {
         FlowMeasurement measurement = flowMeasurement(new BigDecimal("1200.00"));
+        measurement.mergeTimeEstimate("ELAPSED_TIME");
         FlowMeasurementUpdateRequest request = new FlowMeasurementUpdateRequest(
                 station.getId(),
                 new BigDecimal("10.00"),
@@ -202,7 +203,10 @@ class FlowMeasurementServiceTest {
         when(stationScopeService.requireWritableStation(station.getId(), principal)).thenReturn(station);
         when(currentUserService.requireUser(principal)).thenReturn(user);
 
-        service.update(measurement.getId(), request, principal);
+        FlowMeasurementResponse response = service.update(measurement.getId(), request, principal);
+
+        assertThat(response.timeEstimated()).isTrue();
+        assertThat(response.timeEstimateOrigin()).isEqualTo("ELAPSED_TIME");
 
         verify(auditService).recordUpdate(
                 eq(AuditRecordType.FLOW_MEASUREMENT),
