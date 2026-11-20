@@ -5,6 +5,7 @@ import {
   canAccessOperationalModules,
   canEditOperatorWindowRecord,
   canManageUsers,
+  canManageDeviceKeys,
   canReadAllStations,
   canViewAuditHistory,
   canViewDashboardTrends,
@@ -93,4 +94,11 @@ test("blocks operator edit controls for records outside the configured window", 
   assert.equal(canEditOperatorWindowRecord(operator, "2026-07-12T15:00:00.000Z", now), true);
   assert.equal(canEditOperatorWindowRecord(operator, "2026-07-12T14:59:59.999Z", now), false);
   assert.equal(canEditOperatorWindowRecord({ ...operator, role: "SUPERVISOR" }, "2026-07-01T00:00:00.000Z", now), true);
+});
+
+test("allows device key management only for admin", () => {
+  assert.equal(canManageDeviceKeys("ADMIN"), true);
+  for (const role of ["OPERATOR", "SUPERVISOR", "VIEWER", undefined, null] as const) {
+    assert.equal(canManageDeviceKeys(role), false);
+  }
 });

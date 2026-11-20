@@ -1,8 +1,8 @@
-import { ClipboardList, FileBarChart2, Gauge, LogOut, PackageCheck, UserCog } from "lucide-react";
+import { ClipboardList, Cpu, FileBarChart2, Gauge, LogOut, PackageCheck, UserCog } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
-import { canAccessOperationalModules, canManageUsers, canViewReports, getRoleLabel } from "../auth/permissions";
+import { canAccessOperationalModules, canManageDeviceKeys, canManageUsers, canViewReports, getRoleLabel } from "../auth/permissions";
 import { PageHeader } from "../components/PageHeader";
 import { PushNotificationToggle } from "../components/PushNotificationToggle";
 import { appConfig } from "../config/env";
@@ -60,6 +60,12 @@ export function MorePage() {
               <span>Pendências</span>
             </Link>
           </>
+        ) : null}
+        {canManageDeviceKeys(user?.role) ? (
+          <Link className="quick-link-card" to="/app/automacao">
+            <Cpu size={20} aria-hidden="true" />
+            <span>Automação</span>
+          </Link>
         ) : null}
         {canManageUsers(user?.role) ? (
           <Link className="quick-link-card" to="/app/usuarios">

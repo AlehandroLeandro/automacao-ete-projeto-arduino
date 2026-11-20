@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "./components/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
+import { AutomationPage } from "./pages/AutomationPage";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FlowDetailPage } from "./pages/FlowDetailPage";
@@ -75,6 +76,7 @@ export function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="automacao" element={<ProtectedRoute roles={["ADMIN"]}><AutomationPage /></ProtectedRoute>} />
           <Route path="mais" element={<MorePage />} />
         </Route>
       </Route>

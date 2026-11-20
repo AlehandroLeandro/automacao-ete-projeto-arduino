@@ -2298,3 +2298,7 @@ p {
   color: var(--ccl-muted-600);
   font-size: 12px;
 }
+
+.device-key-actions { display: grid; gap: 8px; min-width: 0; }
+.device-key-actions__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.device-key-secret { overflow-wrap: anywhere; }

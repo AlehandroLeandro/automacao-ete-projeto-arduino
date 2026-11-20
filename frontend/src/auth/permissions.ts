@@ -45,6 +45,10 @@ export function canManageLimeThreshold(role: UserRole | null | undefined): boole
   return role === "ADMIN" || role === "SUPERVISOR";
 }
 
+export function canManageDeviceKeys(role: UserRole | null | undefined): boolean {
+  return role === "ADMIN";
+}
+
 export function canManageUsers(role: UserRole | undefined): boolean {
   return role === "ADMIN";
 }
