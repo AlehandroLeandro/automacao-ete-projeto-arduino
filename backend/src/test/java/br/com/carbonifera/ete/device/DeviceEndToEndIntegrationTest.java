@@ -109,6 +109,89 @@ class DeviceEndToEndIntegrationTest {
         assertThat(after.path("series")).isEqualTo(before.path("series"));
         assertThat(after.path("latestFlow").path("measuredAt").asText()).isEqualTo(clock.instant().toString());
         assertThat(after.path("latestFlow").path("value").decimalValue()).isEqualByComparingTo("237.93");
+        String batch = "{\"readings\":[{\"id\":\"sample-1\",\"heightCm\":10,\"rawPh\":20,\"timeEstimated\":true}]}";
+        JsonNode firstBatch = request(post("/api/device/readings/batch").header("Authorization", device)
+                .contentType(MediaType.APPLICATION_JSON).content(batch));
+        assertThat(firstBatch.path("results").get(0).path("accepted").get(0).asText()).isEqualTo("heightCm");
+        assertThat(firstBatch.path("results").get(0).path("rejected")).hasSize(1);
+        JsonNode estimatedDashboard = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
+        assertThat(estimatedDashboard.path("latestFlow").path("timeEstimated").asBoolean()).isTrue();
+        assertThat(estimatedDashboard.path("latestFlow").path("timeEstimateOrigin").asText()).isEqualTo("RECEIVED_AT");
+        JsonNode repeated = request(post("/api/device/readings/batch").header("Authorization", device)
+                .contentType(MediaType.APPLICATION_JSON).content(batch));
+        assertThat(repeated.path("results").get(0).path("duplicate").asBoolean()).isTrue();
+        assertThat(repeated.path("results").get(0).path("accepted")).isEqualTo(firstBatch.path("results").get(0).path("accepted"));
+        mvc.perform(post("/api/device/readings/batch").header("Authorization", device).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"readings\":[{\"id\":\"a\",\"timeEstimated\":true},{\"id\":\"a\",\"timeEstimated\":true}]}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/device/readings/batch").header("Authorization", bearer(auth[1]))
+                .contentType(MediaType.APPLICATION_JSON).content(batch)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/device/readings/batch").contentType(MediaType.APPLICATION_JSON).content(batch))
+                .andExpect(status().isUnauthorized());
+        for (int i = 0; i < 12; i++) {
+            assertThat(request(post("/api/device/readings/batch").header("Authorization", device)
+                    .contentType(MediaType.APPLICATION_JSON).content(batch)).path("results").get(0).path("duplicate").asBoolean()).isTrue();
+        }
+        var hundred = java.util.stream.IntStream.range(0, 100)
+                .mapToObj(i -> Map.of("id", "bulk-" + i, "rawPh", 20, "timeEstimated", true)).toList();
+        assertThat(request(post("/api/device/readings/batch").header("Authorization", device)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("readings", hundred))))
+                .path("results")).hasSize(100);
+        var tooMany = new java.util.ArrayList<>(hundred);
+        tooMany.add(Map.of("id", "extra", "rawPh", 20, "timeEstimated", true));
+        for (String bad : new String[]{"{", "{\"readings\":[]}",
+                "{\"readings\":[{\"id\":\"bad id\",\"timeEstimated\":true}]}",
+                "{\"readings\":[{\"id\":\"no-time\",\"timeEstimated\":false}]}",
+                json.writeValueAsString(Map.of("readings", java.util.List.of(Map.of("id", "future", "timeEstimated", false, "measuredAt", clock.instant().plusSeconds(1).toString())))),
+                json.writeValueAsString(Map.of("readings", tooMany))}) {
+            mvc.perform(post("/api/device/readings/batch").header("Authorization", device)
+                    .contentType(MediaType.APPLICATION_JSON).content(bad)).andExpect(status().isBadRequest());
+        }
+        Instant boundary = clock.instant().minusSeconds(48 * 3600L);
+        String windowBatch = json.writeValueAsString(Map.of("readings", java.util.List.of(
+                Map.of("id", "at-boundary", "rawPh", 6, "measuredAt", boundary.toString(), "timeEstimated", true),
+                Map.of("id", "too-old", "rawPh", 6, "measuredAt", boundary.minusSeconds(1).toString(), "timeEstimated", false),
+                Map.of("id", "elapsed", "heightCm", 12, "measuredAt", clock.instant().toString(), "timeEstimated", true))));
+        JsonNode windowResult = request(post("/api/device/readings/batch").header("Authorization", device)
+                .contentType(MediaType.APPLICATION_JSON).content(windowBatch));
+        assertThat(windowResult.path("results").get(0).path("accepted").get(0).asText()).isEqualTo("rawPh");
+        assertThat(windowResult.path("results").get(1).path("discarded").get(0).path("reason").asText()).isEqualTo("TOO_OLD");
+        JsonNode secondKey = request(post("/api/device-keys").header("Authorization", bearer(auth[1]))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("name", "Second sensor", "stationId", auth[0]))));
+        String secondSecret = request(get("/api/device-keys/" + secondKey.path("id").asText() + "/secret")
+                .header("Authorization", bearer(auth[1]))).path("value").asText();
+        String secondDevice = bearer(request(post("/api/auth/device-login").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("key", secondSecret)))).path("accessToken").asText());
+        assertThat(request(post("/api/device/readings/batch").header("Authorization", secondDevice)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"readings\":[{\"id\":\"sample-1\",\"rawPh\":20,\"timeEstimated\":true}]}")).path("results").get(0).path("duplicate").asBoolean()).isFalse();
+        request(put("/api/flow-measurements/" + average.getId()).header("Authorization", bearer(auth[1]))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "stationId", auth[0], "heightCm", 16, "measuredAt", average.getMeasuredAt().toString(),
+                        "description", "Correcao manual autorizada"))));
+        String conflict = json.writeValueAsString(Map.of("readings", java.util.List.of(Map.of(
+                "id", "edited-window", "heightCm", 12, "measuredAt", start.plusSeconds(1800).toString(), "timeEstimated", false))));
+        assertThat(request(post("/api/device/readings/batch").header("Authorization", device)
+                .contentType(MediaType.APPLICATION_JSON).content(conflict)).path("results").get(0)
+                .path("discarded").get(0).path("reason").asText()).isEqualTo("EDITED");
+        clock.now = start.plusSeconds(7200);
+        scheduler.run();
+        FlowMeasurement mixed = flows.findAll().stream().filter(f -> "Sensor E2E".equals(f.getDeviceName()))
+                .filter(f -> f.getDeviceWindowEnd().equals(start.plusSeconds(7200))).findFirst().orElseThrow();
+        assertThat(mixed.getTimeEstimateOrigin()).isEqualTo("MIXED");
+        JsonNode mixedDetail = request(get("/api/flow-measurements/" + mixed.getId()).header("Authorization", bearer(auth[1])));
+        assertThat(mixedDetail.path("measurement").path("timeEstimated").asBoolean()).isTrue();
+        assertThat(mixedDetail.path("measurement").path("timeEstimateOrigin").asText()).isEqualTo("MIXED");
+        clock.now = clock.now.plusSeconds(1);
+        JsonNode mixedDashboard = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
+        assertThat(mixedDashboard.path("currentDayAverages").path("flow").path("timeEstimateOrigin").asText()).isEqualTo("MIXED");
+        mvc.perform(delete("/api/flow-measurements/" + mixed.getId()).header("Authorization", bearer(auth[1]))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"description\":\"Exclusao manual autorizada\"}"))
+                .andExpect(status().isNoContent());
+        String deletedConflict = json.writeValueAsString(Map.of("readings", java.util.List.of(Map.of(
+                "id", "deleted-window", "heightCm", 12, "measuredAt", start.plusSeconds(3660).toString(), "timeEstimated", false))));
+        assertThat(request(post("/api/device/readings/batch").header("Authorization", device)
+                .contentType(MediaType.APPLICATION_JSON).content(deletedConflict)).path("results").get(0)
+                .path("discarded").get(0).path("reason").asText()).isEqualTo("DELETED");
         for (String route : new String[]{"/api/flow-measurements", "/api/dashboard", "/api/device-keys"}) {
             mvc.perform(get(route).header("Authorization", device)).andExpect(status().isForbidden());
         }
@@ -119,7 +202,7 @@ class DeviceEndToEndIntegrationTest {
         mvc.perform(delete("/api/device-keys/" + id).header("Authorization", bearer(auth[1]))).andExpect(status().isNoContent());
         assertThat(keys.findById(UUID.fromString(id))).isEmpty();
         FlowMeasurement latestStored = flows.findAll().stream()
-                .filter(f -> "Sensor E2E".equals(f.getDeviceName()))
+                .filter(f -> "Sensor E2E".equals(f.getDeviceName()) && !f.isDeleted())
                 .max(java.util.Comparator.comparing(FlowMeasurement::getMeasuredAt)).orElseThrow();
         JsonNode afterDeletion = request(get("/api/dashboard").param("stationId", auth[0]).header("Authorization", bearer(auth[1])));
         assertThat(afterDeletion.path("latestFlow").path("value").decimalValue()).isEqualByComparingTo(latestStored.getFlowLiters());

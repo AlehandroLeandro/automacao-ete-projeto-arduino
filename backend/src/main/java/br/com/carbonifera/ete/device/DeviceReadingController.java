@@ -11,11 +11,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/device/readings")
 public class DeviceReadingController {
     private final DeviceReadingService service;
-    public DeviceReadingController(DeviceReadingService service) { this.service = service; }
+    private final DeviceBatchService batches;
+    public DeviceReadingController(DeviceReadingService service, DeviceBatchService batches) { this.service = service; this.batches = batches; }
 
     @PostMapping
     public DeviceReadingResponse receive(@AuthenticationPrincipal DevicePrincipal principal,
                                          @RequestBody DeviceReadingRequest request) {
         return service.receive(principal.getDeviceKeyId(), request);
+    }
+    @PostMapping("/batch")
+    public DeviceBatchResponse receiveBatch(@AuthenticationPrincipal DevicePrincipal principal,
+                                            @RequestBody DeviceBatchRequest request) throws com.fasterxml.jackson.core.JsonProcessingException {
+        return batches.receive(principal.getDeviceKeyId(), request);
     }
 }

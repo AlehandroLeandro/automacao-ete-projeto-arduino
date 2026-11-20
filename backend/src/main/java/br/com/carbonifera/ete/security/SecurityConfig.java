@@ -53,7 +53,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/device-login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/device/readings").hasRole("DEVICE")
+                        .requestMatchers(HttpMethod.POST, "/api/device/readings", "/api/device/readings/batch").hasRole("DEVICE")
                         .anyRequest().hasAnyRole("OPERATOR", "SUPERVISOR", "ADMIN", "VIEWER")
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

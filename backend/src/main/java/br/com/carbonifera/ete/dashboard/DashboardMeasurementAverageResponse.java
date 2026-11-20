@@ -8,6 +8,11 @@ public record DashboardMeasurementAverageResponse(
         String unit,
         long sampleCount,
         Instant startAt,
-        Instant endAt
+        Instant endAt,
+        boolean timeEstimated,
+        String timeEstimateOrigin
 ) {
+    public DashboardMeasurementAverageResponse(BigDecimal value, String unit, long sampleCount, Instant startAt, Instant endAt) {
+        this(value, unit, sampleCount, startAt, endAt, false, null);
+    }
 }

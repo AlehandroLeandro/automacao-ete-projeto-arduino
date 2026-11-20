@@ -13,8 +13,15 @@ public record FlowMeasurementResponse(
         UUID createdById,
         String createdByName,
         String deviceName,
-        Integer sampleCount
+        Integer sampleCount,
+        boolean timeEstimated,
+        String timeEstimateOrigin
 ) {
+
+    public FlowMeasurementResponse(UUID id, UUID stationId, String stationName, BigDecimal flowLiters,
+            Instant measuredAt, UUID createdById, String createdByName, String deviceName, Integer sampleCount) {
+        this(id, stationId, stationName, flowLiters, measuredAt, createdById, createdByName, deviceName, sampleCount, false, null);
+    }
 
     public static FlowMeasurementResponse from(FlowMeasurement measurement) {
         return new FlowMeasurementResponse(
@@ -28,7 +35,9 @@ public record FlowMeasurementResponse(
                         ? "Equipamento: " + measurement.getDeviceName()
                         : measurement.getCreatedBy().getName(),
                 measurement.getDeviceName(),
-                measurement.getSampleCount()
+                measurement.getSampleCount(),
+                measurement.isTimeEstimated(),
+                measurement.getTimeEstimateOrigin()
         );
     }
 }

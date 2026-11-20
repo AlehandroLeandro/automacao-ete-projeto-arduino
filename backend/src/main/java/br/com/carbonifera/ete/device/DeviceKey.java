@@ -75,6 +75,9 @@ public class DeviceKey {
     private BigDecimal lastTreatedPh;
 
     private Instant lastTreatedPhAt;
+    private String lastFlowTimeEstimateOrigin;
+    private String lastRawPhTimeEstimateOrigin;
+    private String lastTreatedPhTimeEstimateOrigin;
 
     private Instant offlineNotifiedForSeenAt;
 
@@ -149,6 +152,12 @@ public class DeviceKey {
     public AppUser getCreatedBy() { return createdBy; }
     public Instant getLastSeenAt() { return lastSeenAt; }
     public BigDecimal getLastHeightCm() { return lastHeightCm; }
+    public void setLastFlowTimeEstimateOrigin(String origin) { lastFlowTimeEstimateOrigin = origin; }
+    public void setLastRawPhTimeEstimateOrigin(String origin) { lastRawPhTimeEstimateOrigin = origin; }
+    public void setLastTreatedPhTimeEstimateOrigin(String origin) { lastTreatedPhTimeEstimateOrigin = origin; }
+    public String getLastFlowTimeEstimateOrigin() { return lastFlowTimeEstimateOrigin; }
+    public String getLastRawPhTimeEstimateOrigin() { return lastRawPhTimeEstimateOrigin; }
+    public String getLastTreatedPhTimeEstimateOrigin() { return lastTreatedPhTimeEstimateOrigin; }
     public BigDecimal getLastFlowLiters() { return lastFlowLiters; }
     public Instant getLastFlowAt() { return lastFlowAt; }
     public BigDecimal getLastRawPh() { return lastRawPh; }

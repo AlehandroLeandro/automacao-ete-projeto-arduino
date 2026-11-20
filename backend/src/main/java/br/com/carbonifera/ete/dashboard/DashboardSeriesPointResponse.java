@@ -5,6 +5,11 @@ import java.time.Instant;
 
 public record DashboardSeriesPointResponse(
         Instant measuredAt,
-        BigDecimal value
+        BigDecimal value,
+        boolean timeEstimated,
+        String timeEstimateOrigin
 ) {
+    public DashboardSeriesPointResponse(Instant measuredAt, BigDecimal value) {
+        this(measuredAt, value, false, null);
+    }
 }

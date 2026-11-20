@@ -9,6 +9,11 @@ public record DashboardMeasurementResponse(
         String stationName,
         BigDecimal value,
         String unit,
-        Instant measuredAt
+        Instant measuredAt,
+        boolean timeEstimated,
+        String timeEstimateOrigin
 ) {
+    public DashboardMeasurementResponse(UUID stationId, String stationName, BigDecimal value, String unit, Instant measuredAt) {
+        this(stationId, stationName, value, unit, measuredAt, false, null);
+    }
 }

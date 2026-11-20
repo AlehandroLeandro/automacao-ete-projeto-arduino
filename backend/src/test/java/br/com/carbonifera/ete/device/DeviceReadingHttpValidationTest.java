@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, ChangePasswordGuardFilter.class,
         DeviceReadingService.class, DeviceRateLimiter.class, DeviceReadingHttpValidationTest.Config.class})
 class DeviceReadingHttpValidationTest {
+    @org.springframework.boot.test.mock.mockito.MockBean DeviceBatchService batches;
     @Autowired MockMvc mvc;
     @MockBean DeviceKeyRepository keys;
     @MockBean DeviceReadingRepository readings;

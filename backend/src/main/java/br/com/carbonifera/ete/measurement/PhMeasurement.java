@@ -70,6 +70,9 @@ public class PhMeasurement {
     @Column(name = "sample_count")
     private Integer sampleCount;
 
+    @Column(length = 20)
+    private String timeEstimateOrigin;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -103,6 +106,13 @@ public class PhMeasurement {
         measurement.deviceWaterType = type;
         measurement.sampleCount = sampleCount;
         return measurement;
+    }
+
+    public boolean isTimeEstimated() { return timeEstimateOrigin != null; }
+    public String getTimeEstimateOrigin() { return timeEstimateOrigin; }
+    public void mergeTimeEstimate(String origin) {
+        if (origin != null) timeEstimateOrigin = timeEstimateOrigin == null || timeEstimateOrigin.equals(origin)
+                ? origin : "MIXED";
     }
 
     public void setClientRequestId(UUID clientRequestId) { this.clientRequestId = clientRequestId; }

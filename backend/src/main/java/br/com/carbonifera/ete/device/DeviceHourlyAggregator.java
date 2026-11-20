@@ -106,14 +106,20 @@ public class DeviceHourlyAggregator {
 
     public MergeOutcome mergeLate(DeviceKey deviceKey, DeviceReadingType type, Instant measuredAt,
                                   BigDecimal value, BigDecimal flowLiters, Instant now) {
+        return mergeLate(deviceKey, type, measuredAt, value, flowLiters, now, null);
+    }
+
+    public MergeOutcome mergeLate(DeviceKey deviceKey, DeviceReadingType type, Instant measuredAt,
+                                  BigDecimal value, BigDecimal flowLiters, Instant now, String origin) {
         Instant end = windowEnd(measuredAt);
-        if (now.isAfter(end.plusSeconds(24 * 60 * 60L))) {
+        if (measuredAt.isBefore(now.minusSeconds(48 * 60 * 60L))) {
             return MergeOutcome.DISCARDED_TOO_OLD;
         }
 
         return mergeTransaction.execute(status -> {
             deviceKeyRepository.lockById(deviceKey.getId());
             DeviceReading reading = new DeviceReading(deviceKey, type, value, flowLiters, measuredAt);
+            reading.setTimeEstimateOrigin(origin);
             MergeOutcome outcome = mergeExisting(deviceKey, type, end, List.of(reading));
             if (outcome == null) {
                 deviceReadingRepository.save(reading);
@@ -144,6 +150,7 @@ public class DeviceHourlyAggregator {
                             readings.stream().map(DeviceReading::getFlowLiters).toList()),
                     weightedAverage(measurement.getHeightCm(), count,
                             readings.stream().map(DeviceReading::getValue).toList()), total);
+            measurement.mergeTimeEstimate(origin(readings));
             flowMeasurementRepository.save(measurement);
             return MergeOutcome.MERGED;
         }
@@ -161,6 +168,7 @@ public class DeviceHourlyAggregator {
         int total = Math.addExact(count, readings.size());
         measurement.mergeDeviceReading(weightedAverage(measurement.getPh(), count,
                 readings.stream().map(DeviceReading::getValue).toList()), total);
+        measurement.mergeTimeEstimate(origin(readings));
         phMeasurementRepository.save(measurement);
         return MergeOutcome.MERGED;
     }
@@ -190,14 +198,23 @@ public class DeviceHourlyAggregator {
         if (type == DeviceReadingType.FLOW) {
             BigDecimal averageHeight = average(readings.stream().map(DeviceReading::getValue).toList());
             BigDecimal averageLiters = average(readings.stream().map(DeviceReading::getFlowLiters).toList());
-            return flowMeasurementRepository.save(FlowMeasurement.fromDevice(deviceKey.getStation(), averageLiters,
-                    averageHeight, measuredAt, deviceKey, deviceKey.getName(), windowEnd, readings.size()));
+            FlowMeasurement measurement = FlowMeasurement.fromDevice(deviceKey.getStation(), averageLiters,
+                    averageHeight, measuredAt, deviceKey, deviceKey.getName(), windowEnd, readings.size());
+            measurement.mergeTimeEstimate(origin(readings));
+            return flowMeasurementRepository.save(measurement);
         }
 
         BigDecimal averagePh = average(readings.stream().map(DeviceReading::getValue).toList());
         PhWaterType waterType = type == DeviceReadingType.PH_RAW ? PhWaterType.RAW : PhWaterType.TREATED;
-        return phMeasurementRepository.save(PhMeasurement.fromDevice(deviceKey.getStation(), waterType, averagePh,
-                measuredAt, deviceKey, deviceKey.getName(), windowEnd, readings.size()));
+        PhMeasurement measurement = PhMeasurement.fromDevice(deviceKey.getStation(), waterType, averagePh,
+                measuredAt, deviceKey, deviceKey.getName(), windowEnd, readings.size());
+        measurement.mergeTimeEstimate(origin(readings));
+        return phMeasurementRepository.save(measurement);
+    }
+
+    private String origin(List<DeviceReading> readings) {
+        return readings.stream().map(DeviceReading::getTimeEstimateOrigin).filter(java.util.Objects::nonNull)
+                .reduce((a, b) -> a.equals(b) ? a : "MIXED").orElse(null);
     }
 
     private BigDecimal average(List<BigDecimal> values) {

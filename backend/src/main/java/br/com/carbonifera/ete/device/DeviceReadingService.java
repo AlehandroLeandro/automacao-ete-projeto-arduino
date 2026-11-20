@@ -32,6 +32,10 @@ public class DeviceReadingService {
     @Transactional
     public DeviceReadingResponse receive(UUID keyId, DeviceReadingRequest request) {
         if (!limiter.allow(keyId)) throw new BusinessException("Limite de requisicoes excedido", HttpStatus.TOO_MANY_REQUESTS);
+        return process(keyId, request, false, null);
+    }
+
+    DeviceReadingResponse process(UUID keyId, DeviceReadingRequest request, boolean allowEmpty, String origin) {
         DeviceKey key = keys.lockById(keyId).filter(DeviceKey::isActive)
                 .orElseThrow(() -> new BusinessException("Dispositivo invalido", HttpStatus.UNAUTHORIZED));
         Instant now = clock.instant();
@@ -42,20 +46,20 @@ public class DeviceReadingService {
         validate("heightCm", request.heightCm(), 45, accepted, rejected);
         validate("rawPh", request.rawPh(), 14, accepted, rejected);
         validate("treatedPh", request.treatedPh(), 14, accepted, rejected);
-        if (accepted.isEmpty()) throw new BusinessException("Nenhuma leitura valida");
+        if (accepted.isEmpty() && !allowEmpty) throw new BusinessException("Nenhuma leitura valida");
         List<DeviceReadingResponse.FieldResult> discarded = new ArrayList<>();
         if (accepted.contains("heightCm")) {
             BigDecimal flow = FlowRateCalculator.flowLitersFromHeightCm(request.heightCm());
-            if (store(key, DeviceReadingType.FLOW, "heightCm", request.heightCm(), flow, measuredAt, now, discarded)
-                    && (key.getLastFlowAt() == null || !measuredAt.isBefore(key.getLastFlowAt()))) key.recordLiveFlow(request.heightCm(), flow, measuredAt);
+            if (store(key, DeviceReadingType.FLOW, "heightCm", request.heightCm(), flow, measuredAt, now, discarded, origin)
+                    && (key.getLastFlowAt() == null || !measuredAt.isBefore(key.getLastFlowAt()))) { key.recordLiveFlow(request.heightCm(), flow, measuredAt); key.setLastFlowTimeEstimateOrigin(origin); }
         }
         if (accepted.contains("rawPh")) {
-            if (store(key, DeviceReadingType.PH_RAW, "rawPh", request.rawPh(), null, measuredAt, now, discarded)
-                    && (key.getLastRawPhAt() == null || !measuredAt.isBefore(key.getLastRawPhAt()))) key.recordLivePh(request.rawPh(), null, measuredAt);
+            if (store(key, DeviceReadingType.PH_RAW, "rawPh", request.rawPh(), null, measuredAt, now, discarded, origin)
+                    && (key.getLastRawPhAt() == null || !measuredAt.isBefore(key.getLastRawPhAt()))) { key.recordLivePh(request.rawPh(), null, measuredAt); key.setLastRawPhTimeEstimateOrigin(origin); }
         }
         if (accepted.contains("treatedPh")) {
-            if (store(key, DeviceReadingType.PH_TREATED, "treatedPh", request.treatedPh(), null, measuredAt, now, discarded)
-                    && (key.getLastTreatedPhAt() == null || !measuredAt.isBefore(key.getLastTreatedPhAt()))) key.recordLivePh(null, request.treatedPh(), measuredAt);
+            if (store(key, DeviceReadingType.PH_TREATED, "treatedPh", request.treatedPh(), null, measuredAt, now, discarded, origin)
+                    && (key.getLastTreatedPhAt() == null || !measuredAt.isBefore(key.getLastTreatedPhAt()))) { key.recordLivePh(null, request.treatedPh(), measuredAt); key.setLastTreatedPhTimeEstimateOrigin(origin); }
         }
         discarded.forEach(result -> accepted.remove(result.field()));
         key.recordSeen(now);
@@ -63,14 +67,18 @@ public class DeviceReadingService {
     }
 
     private boolean store(DeviceKey key, DeviceReadingType type, String field, BigDecimal value, BigDecimal flow,
-                       Instant measuredAt, Instant now, List<DeviceReadingResponse.FieldResult> discarded) {
+                       Instant measuredAt, Instant now, List<DeviceReadingResponse.FieldResult> discarded, String origin) {
         Instant currentHour = ZonedDateTime.ofInstant(now, SchedulingConfig.APP_ZONE)
                 .withMinute(0).withSecond(0).withNano(0).toInstant();
         if (!measuredAt.isBefore(currentHour)) {
-            readings.save(new DeviceReading(key, type, value, flow, measuredAt));
+            DeviceReading reading = new DeviceReading(key, type, value, flow, measuredAt);
+            reading.setTimeEstimateOrigin(origin);
+            readings.save(reading);
             return true;
         }
-        DeviceHourlyAggregator.MergeOutcome outcome = aggregator.mergeLate(key, type, measuredAt, value, flow, now);
+        DeviceHourlyAggregator.MergeOutcome outcome = origin == null
+                ? aggregator.mergeLate(key, type, measuredAt, value, flow, now)
+                : aggregator.mergeLate(key, type, measuredAt, value, flow, now, origin);
         String reason = switch (outcome) {
             case DISCARDED_EDITED -> "EDITED";
             case DISCARDED_DELETED -> "DELETED";

@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = DeviceReadingController.class, properties = "server.port=0")
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, ChangePasswordGuardFilter.class, DeviceReadingControllerTest.Config.class})
 class DeviceReadingControllerTest {
+    @org.springframework.boot.test.mock.mockito.MockBean DeviceBatchService batches;
     @Autowired MockMvc mvc;
     @MockBean DeviceReadingService service;
     @MockBean DeviceKeyRepository keys;

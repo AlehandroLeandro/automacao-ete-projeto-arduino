@@ -206,7 +206,7 @@ public class DashboardService {
         DeviceLiveReadingService.LiveReading live = liveReadings.latest(stations).get(type);
         if (live == null || (stored != null && !live.measuredAt().isAfter(stored.measuredAt()))) return stored;
         return new DashboardMeasurementResponse(live.station().getId(), live.station().getName(),
-                live.value(), unit, live.measuredAt());
+                live.value(), unit, live.measuredAt(), live.timeEstimateOrigin() != null, live.timeEstimateOrigin());
     }
 
     private DashboardCurrentDayAveragesResponse currentDayAverages(List<Station> stations, Instant now, boolean includePh) {
@@ -267,23 +267,19 @@ public class DashboardService {
             Instant startAt,
             Instant endAt
     ) {
-        List<BigDecimal> values = phMeasurementRepository.findDashboardRows(type, stations, startAt, endAt)
-                .stream()
-                .filter(measurement -> !measurement.isDeleted())
-                .map(PhMeasurement::getPh)
-                .toList();
-        return average(values, "pH", startAt, endAt);
+        var rows = phMeasurementRepository.findDashboardRows(type, stations, startAt, endAt).stream()
+                .filter(measurement -> !measurement.isDeleted()).toList();
+        return average(rows.stream().map(PhMeasurement::getPh).toList(), "pH", startAt, endAt,
+                origin(rows.stream().map(PhMeasurement::getTimeEstimateOrigin).toList()));
     }
 
     private FlowAverages flowAverages(List<Station> stations, Instant startAt, Instant endAt) {
-        List<BigDecimal> values = flowMeasurementRepository.findDashboardRows(stations, startAt, endAt)
-                .stream()
-                .filter(measurement -> !measurement.isDeleted())
-                .map(FlowMeasurement::getFlowLiters)
-                .toList();
+        var rows = flowMeasurementRepository.findDashboardRows(stations, startAt, endAt).stream()
+                .filter(measurement -> !measurement.isDeleted()).toList();
+        List<BigDecimal> values = rows.stream().map(FlowMeasurement::getFlowLiters).toList();
         BigDecimal total = sum(values);
         BigDecimal average = averageValue(values, total);
-        DashboardMeasurementAverageResponse measurementAverage = average(values, "L", startAt, endAt);
+        DashboardMeasurementAverageResponse measurementAverage = average(values, "L", startAt, endAt, origin(rows.stream().map(FlowMeasurement::getTimeEstimateOrigin).toList()));
         return new FlowAverages(measurementAverage, average, total);
     }
 
@@ -291,13 +287,18 @@ public class DashboardService {
             List<BigDecimal> values,
             String unit,
             Instant startAt,
-            Instant endAt
+            Instant endAt, String origin
     ) {
         if (values.isEmpty()) {
             return null;
         }
         BigDecimal value = averageValue(values, sum(values));
-        return new DashboardMeasurementAverageResponse(value, unit, values.size(), startAt, endAt);
+        return new DashboardMeasurementAverageResponse(value, unit, values.size(), startAt, endAt, origin != null, origin);
+    }
+
+    private String origin(List<String> origins) {
+        return origins.stream().filter(java.util.Objects::nonNull)
+                .reduce((a, b) -> a.equals(b) ? a : "MIXED").orElse(null);
     }
 
     private BigDecimal averageValue(List<BigDecimal> values, BigDecimal sum) {
@@ -385,7 +386,7 @@ public class DashboardService {
     ) {
         List<DashboardSeriesPointResponse> points = measurements.stream()
                 .filter(measurement -> sameStation(measurement.getStation(), station))
-                .map(measurement -> new DashboardSeriesPointResponse(measurement.getMeasuredAt(), measurement.getPh()))
+                .map(measurement -> new DashboardSeriesPointResponse(measurement.getMeasuredAt(), measurement.getPh(), measurement.isTimeEstimated(), measurement.getTimeEstimateOrigin()))
                 .toList();
         return new DashboardSeriesResponse(station.getId(), station.getName(), metric, "pH", points);
     }
@@ -407,7 +408,7 @@ public class DashboardService {
                 .filter(measurement -> sameStation(measurement.getStation(), station))
                 .map(measurement -> new DashboardSeriesPointResponse(
                         measurement.getMeasuredAt(),
-                        measurement.getFlowLiters()
+                        measurement.getFlowLiters(), measurement.isTimeEstimated(), measurement.getTimeEstimateOrigin()
                 ))
                 .toList();
         return new DashboardSeriesResponse(station.getId(), station.getName(), DashboardMetric.FLOW, "L", points);
@@ -454,7 +455,7 @@ public class DashboardService {
                 measurement.getStation().getName(),
                 measurement.getPh(),
                 "pH",
-                measurement.getMeasuredAt()
+                measurement.getMeasuredAt(), measurement.isTimeEstimated(), measurement.getTimeEstimateOrigin()
         );
     }
 
@@ -464,7 +465,7 @@ public class DashboardService {
                 measurement.getStation().getName(),
                 measurement.getFlowLiters(),
                 "L",
-                measurement.getMeasuredAt()
+                measurement.getMeasuredAt(), measurement.isTimeEstimated(), measurement.getTimeEstimateOrigin()
         );
     }
 

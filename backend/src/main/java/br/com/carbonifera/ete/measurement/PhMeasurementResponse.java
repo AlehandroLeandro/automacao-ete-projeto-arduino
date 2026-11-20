@@ -14,8 +14,15 @@ public record PhMeasurementResponse(
         UUID createdById,
         String createdByName,
         String deviceName,
-        Integer sampleCount
+        Integer sampleCount,
+        boolean timeEstimated,
+        String timeEstimateOrigin
 ) {
+
+    public PhMeasurementResponse(UUID id, UUID stationId, String stationName, PhWaterType type, BigDecimal ph,
+            Instant measuredAt, UUID createdById, String createdByName, String deviceName, Integer sampleCount) {
+        this(id, stationId, stationName, type, ph, measuredAt, createdById, createdByName, deviceName, sampleCount, false, null);
+    }
 
     public static PhMeasurementResponse from(PhMeasurement measurement) {
         return new PhMeasurementResponse(
@@ -30,7 +37,9 @@ public record PhMeasurementResponse(
                         ? "Equipamento: " + measurement.getDeviceName()
                         : measurement.getCreatedBy().getName(),
                 measurement.getDeviceName(),
-                measurement.getSampleCount()
+                measurement.getSampleCount(),
+                measurement.isTimeEstimated(),
+                measurement.getTimeEstimateOrigin()
         );
     }
 }

@@ -359,12 +359,23 @@ class DeviceHourlyAggregatorTest {
 
     @Test
     void discardsTooOldReadingWithoutPersistingRawOrAverage() {
-        Instant measuredAt = Instant.parse("2026-11-12T17:00:00Z");
+        Instant measuredAt = NOW.minusSeconds(48 * 60 * 60L + 1);
 
         assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
                 .isEqualTo(DeviceHourlyAggregator.MergeOutcome.DISCARDED_TOO_OLD);
         verify(readingRepository, never()).save(any(DeviceReading.class));
         verify(phRepository, never()).save(any(PhMeasurement.class));
+    }
+
+    @Test
+    void acceptsReadingAtFortyEightHourBoundary() {
+        Instant measuredAt = NOW.minusSeconds(48 * 60 * 60L);
+        when(phRepository.findByDeviceKeyAndDeviceWaterTypeAndDeviceWindowEnd(key, PhWaterType.RAW,
+                aggregator.windowEnd(measuredAt))).thenReturn(java.util.Optional.empty());
+
+        assertThat(aggregator.mergeLate(key, DeviceReadingType.PH_RAW, measuredAt, new BigDecimal("8.00"), null, NOW))
+                .isEqualTo(DeviceHourlyAggregator.MergeOutcome.RAW_STORED);
+        verify(readingRepository).save(any(DeviceReading.class));
     }
 
     @Test

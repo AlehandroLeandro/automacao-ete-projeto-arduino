@@ -45,6 +45,9 @@ public class DeviceReading {
     @Column(nullable = false)
     private Instant measuredAt;
 
+    @Column(length = 20)
+    private String timeEstimateOrigin;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -59,6 +62,9 @@ public class DeviceReading {
         this.flowLiters = flowLiters;
         this.measuredAt = measuredAt;
     }
+
+    public void setTimeEstimateOrigin(String origin) { this.timeEstimateOrigin = origin; }
+    public String getTimeEstimateOrigin() { return timeEstimateOrigin; }
 
     @PrePersist
     void prePersist() {

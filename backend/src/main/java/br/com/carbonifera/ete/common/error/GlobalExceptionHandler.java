@@ -34,6 +34,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleMalformed(HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "Corpo da requisicao invalido", request);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException exception, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, exception.getMessage(), request);
