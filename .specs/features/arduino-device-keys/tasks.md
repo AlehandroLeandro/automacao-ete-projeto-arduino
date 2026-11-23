@@ -19,15 +19,15 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 | Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
 | ---------- | ------------------ | -------------------- | ---------------- | ----------- |
-| Service / domínio (`DeviceKeyService`, `DeviceReadingService`, `DeviceHourlyAggregator`, `DeviceAuthService`, `DeviceOfflineMonitor`, `DashboardService`, utilitários de chave, limitadores, policy) | unit | Todos os ramos; 1:1 com os ACs da spec; todo edge case listado tem teste | `backend/src/test/java/br/com/carbonifera/ete/**/*Test.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
-| Controller / segurança (`DeviceKeyController`, `DeviceAuthController`, `DeviceReadingController`, `SecurityConfig`, filtro JWT) | integration (`@WebMvcTest`) | Todas as rotas da tarefa: caminho feliz + cada edge case + erros (401/403/409/429/400) | `backend/src/test/java/br/com/carbonifera/ete/**/*ControllerTest.java`, `security/*Test.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
-| Repositório / acesso a dados | integration (`@DataJpaTest`, H2) | Consultas principais + caminhos de erro/vazio | `backend/src/test/java/br/com/carbonifera/ete/**/*RepositoryTest.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
-| Agendador / monitor (`DeviceHourlyScheduler`, `DeviceOfflineMonitor`) | unit (com `Clock` fixo) | Cada gatilho e cada guarda do AC | `backend/src/test/java/br/com/carbonifera/ete/device/*Test.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
+| Service / domínio (`DeviceKeyService`, `DeviceReadingService`, `DeviceHourlyAggregator`, `DeviceAuthService`, `DeviceOfflineMonitor`, `DashboardService`, utilitários de chave, limitadores, policy) | unit | Todos os ramos; 1:1 com os ACs da spec; todo edge case listado tem teste | `backend/src/test/java/br/com/ete/**/*Test.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
+| Controller / segurança (`DeviceKeyController`, `DeviceAuthController`, `DeviceReadingController`, `SecurityConfig`, filtro JWT) | integration (`@WebMvcTest`) | Todas as rotas da tarefa: caminho feliz + cada edge case + erros (401/403/409/429/400) | `backend/src/test/java/br/com/ete/**/*ControllerTest.java`, `security/*Test.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
+| Repositório / acesso a dados | integration (`@DataJpaTest`, H2) | Consultas principais + caminhos de erro/vazio | `backend/src/test/java/br/com/ete/**/*RepositoryTest.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
+| Agendador / monitor (`DeviceHourlyScheduler`, `DeviceOfflineMonitor`) | unit (com `Clock` fixo) | Cada gatilho e cada guarda do AC | `backend/src/test/java/br/com/ete/device/*Test.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
 | Entidade / configuração / schema (`DeviceKey`, `DeviceReading`, `DeviceProperties`, `schema.sql`, YAML/env) | none | - (gate de build) | - | `cd backend && mvn -q test` |
 | Frontend utilitários, adaptadores, permissões, API client | unit (`vite-node`) | Todos os ramos de cada função pura; payloads exatos | `frontend/tests/**/*.test.ts` | `cd frontend && npm test` |
 | Frontend página/componente React | none | - (não há biblioteca de teste de componente; lógica isolada em `utils/`; gate = `tsc` no build + verificação visual do Verifier) | - | `cd frontend && npm run build` |
 | Documentação / verificação manual em Postgres (`README.md`, T54) | none | - (sem código de produção; T54 é checagem manual contra Postgres real) | - | gate de build |
-| Integração ponta a ponta do backend | integration (`@SpringBootTest` + H2 + MockMvc) | Fluxo login → envio → agregação → lista/dashboard e isolamento do papel DEVICE | `backend/src/test/java/br/com/carbonifera/ete/device/*IntegrationTest.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
+| Integração ponta a ponta do backend | integration (`@SpringBootTest` + H2 + MockMvc) | Fluxo login → envio → agregação → lista/dashboard e isolamento do papel DEVICE | `backend/src/test/java/br/com/ete/device/*IntegrationTest.java` | `cd backend && mvn -q test -Dtest=<Classe>Test` |
 
 ## Gate Check Commands
 
@@ -139,7 +139,7 @@ T52 não depende de outras tarefas da fase.
 ### T1: Criar `DeviceProperties` e configuração de ambiente
 
 **What**: Criar o record `@ConfigurationProperties(prefix = "app.device")` com `encryptionSecret`, `offlineMinutes` (padrão 5) e `rateLimitPerMinute` (padrão 10); ligar `DEVICE_KEY_ENCRYPTION_SECRET`, `DEVICE_OFFLINE_MINUTES` e `DEVICE_RATE_LIMIT_PER_MINUTE` em `application.yml`, `application-test.yml`, `.env.example` e `docker-compose.yml`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/config/DeviceProperties.java`
+**Where**: `backend/src/main/java/br/com/ete/config/DeviceProperties.java`
 **Depends on**: None
 **Reuses**: `config/OperatorAccessProperties.java` (record com default no construtor compacto)
 **Requirement**: DEV-02, DEV-13
@@ -167,7 +167,7 @@ T52 não depende de outras tarefas da fase.
 ### T2: Validar `DEVICE_KEY_ENCRYPTION_SECRET` na subida
 
 **What**: Estender `SensitiveConfigurationValidator` para falhar quando o segredo da chave de dispositivo é placeholder conhecido ou tem menos de 32 caracteres.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/config/SensitiveConfigurationValidator.java`
+**Where**: `backend/src/main/java/br/com/ete/config/SensitiveConfigurationValidator.java`
 **Depends on**: T1
 **Reuses**: `rejectPlaceholder` e `FORBIDDEN_PLACEHOLDERS` existentes
 **Requirement**: DEV-02
@@ -194,7 +194,7 @@ T52 não depende de outras tarefas da fase.
 ### T3: Implementar `DeviceKeyGenerator`
 
 **What**: Gerar a chave de 24 caracteres com `SecureRandom`, com ao menos uma maiúscula, uma minúscula, um número e um símbolo de `!@#$%^&*-_=+?`, embaralhada.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyGenerator.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyGenerator.java`
 **Depends on**: None
 **Reuses**: nenhum (classe nova)
 **Requirement**: DEV-01
@@ -222,7 +222,7 @@ T52 não depende de outras tarefas da fase.
 ### T4: Implementar `DeviceKeyCipher` (AES-GCM)
 
 **What**: Cifrar e decifrar o valor da chave com AES-256-GCM; chave AES = SHA-256 de `DeviceProperties.encryptionSecret`; IV de 12 bytes aleatório prefixado; saída em Base64.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyCipher.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyCipher.java`
 **Depends on**: T1
 **Reuses**: `DeviceProperties`
 **Requirement**: DEV-02
@@ -251,7 +251,7 @@ T52 não depende de outras tarefas da fase.
 ### T5: Implementar `DeviceKeyHasher`
 
 **What**: Calcular o SHA-256 em hexadecimal minúsculo do valor da chave, usado para o login.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyHasher.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyHasher.java`
 **Depends on**: None
 **Reuses**: `java.security.MessageDigest`
 **Requirement**: DEV-02
@@ -281,7 +281,7 @@ T52 não depende de outras tarefas da fase.
 ### T6: Criar a entidade `DeviceKey`
 
 **What**: Entidade `device_keys` com ETE, nome, `nameKey` (minúsculas), `encryptedValue`, `valueHash` (único), `active`, `createdAt`, `createdBy`, `lastSeenAt`, últimos valores ao vivo (altura, litros, pH entrada, pH saída, cada um com horário) e `offlineNotifiedForSeenAt`; restrição única `(station_id, name_key)`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKey.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKey.java`
 **Depends on**: None
 **Reuses**: padrão de `measurement/FlowMeasurement.java` (UUID, `@PrePersist`)
 **Requirement**: DEV-01, DEV-02, DEV-12, DEV-13
@@ -308,7 +308,7 @@ T52 não depende de outras tarefas da fase.
 ### T7: Criar `DeviceKeyRepository`
 
 **What**: Repositório com `findByValueHash`, `existsByStationAndNameKey`, `findAllByOrderByNameKeyAsc`, `findAllByActiveTrueAndLastSeenAtIsNotNull` e consulta de chaves por lista de ETEs.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyRepository.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyRepository.java`
 **Depends on**: T6
 **Reuses**: padrão de `station/StationRepository.java`
 **Requirement**: DEV-01, DEV-06, DEV-12, DEV-13
@@ -337,7 +337,7 @@ T52 não depende de outras tarefas da fase.
 ### T8: Criar a entidade `DeviceReading` e o enum `DeviceReadingType`
 
 **What**: Entidade `device_readings` (chave, tipo `FLOW|PH_RAW|PH_TREATED`, valor, litros, `measuredAt`, `createdAt`) com índice em `(device_key_id, type, measured_at)`, e o enum `DeviceReadingType`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceReading.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceReading.java`
 **Depends on**: T6
 **Reuses**: padrão de entidade de `FlowMeasurement`
 **Requirement**: DEV-08, DEV-09
@@ -363,7 +363,7 @@ T52 não depende de outras tarefas da fase.
 ### T9: Criar `DeviceReadingRepository`
 
 **What**: Repositório com busca de leituras pendentes anteriores a um instante, busca por chave/tipo/intervalo e exclusão por chave e por ids.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceReadingRepository.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceReadingRepository.java`
 **Depends on**: T8
 **Reuses**: padrão de `measurement/FlowMeasurementRepository.java`
 **Requirement**: DEV-09
@@ -391,7 +391,7 @@ T52 não depende de outras tarefas da fase.
 ### T10: Adaptar `FlowMeasurement` para registros de equipamento
 
 **What**: Tornar `createdBy` opcional e adicionar `deviceKey` (nulável), `deviceName`, `deviceWindowEnd` e `sampleCount`, com índice único `(device_key_id, device_window_end)` e construtor/fábrica para registro de equipamento.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/measurement/FlowMeasurement.java`
+**Where**: `backend/src/main/java/br/com/ete/measurement/FlowMeasurement.java`
 **Depends on**: T6
 **Reuses**: construtor existente de `FlowMeasurement`
 **Requirement**: DEV-09, DEV-11
@@ -419,7 +419,7 @@ T52 não depende de outras tarefas da fase.
 ### T11: Adaptar `PhMeasurement` para registros de equipamento
 
 **What**: Mesma adaptação de T10 em `PhMeasurement`, com índice único `(device_key_id, type, device_window_end)`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/measurement/PhMeasurement.java`
+**Where**: `backend/src/main/java/br/com/ete/measurement/PhMeasurement.java`
 **Depends on**: T6
 **Reuses**: mudança de T10
 **Requirement**: DEV-09, DEV-11
@@ -476,7 +476,7 @@ T52 não depende de outras tarefas da fase.
 ### T13: Ajustar `FlowMeasurementRepository` para registros de equipamento
 
 **What**: Mudar o filtro de autor das consultas de lista para `(:createdById is null or createdBy.id = :createdById or createdBy is null)` e adicionar `findByDeviceKeyAndDeviceWindowEnd`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/measurement/FlowMeasurementRepository.java`
+**Where**: `backend/src/main/java/br/com/ete/measurement/FlowMeasurementRepository.java`
 **Depends on**: T10
 **Reuses**: consultas `findForList` existentes
 **Requirement**: DEV-11
@@ -504,7 +504,7 @@ T52 não depende de outras tarefas da fase.
 ### T14: Ajustar `PhMeasurementRepository` para registros de equipamento
 
 **What**: Mesma mudança de T13 nas consultas de pH, com `findByDeviceKeyAndTypeAndDeviceWindowEnd`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/measurement/PhMeasurementRepository.java`
+**Where**: `backend/src/main/java/br/com/ete/measurement/PhMeasurementRepository.java`
 **Depends on**: T11
 **Reuses**: mudança de T13
 **Requirement**: DEV-11
@@ -531,7 +531,7 @@ T52 não depende de outras tarefas da fase.
 ### T15: Tornar `FlowMeasurementResponse` seguro para autor nulo
 
 **What**: Quando não há autor, `createdById` fica nulo e `createdByName = "Equipamento: " + deviceName`; incluir `deviceName` e `sampleCount` na resposta.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/measurement/FlowMeasurementResponse.java`
+**Where**: `backend/src/main/java/br/com/ete/measurement/FlowMeasurementResponse.java`
 **Depends on**: T10
 **Reuses**: `FlowMeasurementResponse.from`
 **Requirement**: DEV-11
@@ -559,7 +559,7 @@ T52 não depende de outras tarefas da fase.
 ### T16: Tornar `PhMeasurementResponse` seguro para autor nulo
 
 **What**: Mesmo tratamento de T15 na resposta de pH.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/measurement/PhMeasurementResponse.java`
+**Where**: `backend/src/main/java/br/com/ete/measurement/PhMeasurementResponse.java`
 **Depends on**: T11
 **Reuses**: mudança de T15
 **Requirement**: DEV-11
@@ -586,7 +586,7 @@ T52 não depende de outras tarefas da fase.
 ### T17: Permitir registros sem autor em `OperatorAuthorshipPolicy`
 
 **What**: `assertOwned` passa a aceitar `createdBy == null` (registro de equipamento); a checagem de ETE continua em `StationScopeService`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/security/OperatorAuthorshipPolicy.java`
+**Where**: `backend/src/main/java/br/com/ete/security/OperatorAuthorshipPolicy.java`
 **Depends on**: None
 **Reuses**: `assertOwned` existente
 **Requirement**: DEV-11
@@ -614,7 +614,7 @@ T52 não depende de outras tarefas da fase.
 ### T18: Adicionar `DEVICE_KEY` à auditoria
 
 **What**: Incluir `DEVICE_KEY` em `AuditRecordType`, tratar o caso no `switch` de `AuditService.resolveRecordStation` (404 quando a chave não existe mais) e adicionar `existsByRecordTypeAndRecordIdAndAction` em `AuditEventRepository`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/audit/AuditService.java`
+**Where**: `backend/src/main/java/br/com/ete/audit/AuditService.java`
 **Depends on**: T7
 **Reuses**: `AuditService.recordUpdate/recordDelete`
 **Requirement**: DEV-05, DEV-10
@@ -642,7 +642,7 @@ T52 não depende de outras tarefas da fase.
 ### T19: Adicionar tipos de notificação e destinatários de dispositivo
 
 **What**: Incluir `DEVICE_OFFLINE_ALERT` e `DEVICE_BACK_ONLINE` em `NotificationType` e `deviceAlertRecipients(Station)` em `NotificationRecipientResolver` (supervisores e admins ativos mais operadores ativos da ETE, sem repetição).
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/notification/NotificationRecipientResolver.java`
+**Where**: `backend/src/main/java/br/com/ete/notification/NotificationRecipientResolver.java`
 **Depends on**: None
 **Reuses**: `activeSupervisorsAndAdmins`, `findAllByRoleAndStationAndActiveTrue`
 **Requirement**: DEV-13
@@ -672,7 +672,7 @@ T52 não depende de outras tarefas da fase.
 ### T20: `DeviceHourlyAggregator` - janela da hora e criação da média
 
 **What**: Criar o componente com `windowEnd(Instant)` (fim da janela em `America/Sao_Paulo`) e a criação do registro de média de um grupo (chave, tipo, hora): vazão (média de `heightCm` e de litros, 2 casas, HALF_UP), pH (média, 2 casas, HALF_UP), `measuredAt` = `min(windowEnd, now)`, `createdBy` nulo, `deviceKey`, `deviceName`, `deviceWindowEnd`, `sampleCount`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceHourlyAggregator.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceHourlyAggregator.java`
 **Depends on**: T3, T9, T10, T11, T13, T14
 **Reuses**: `FlowRateCalculator`, `SchedulingConfig.APP_ZONE`, `Clock`
 **Requirement**: DEV-09
@@ -702,7 +702,7 @@ T52 não depende de outras tarefas da fase.
 ### T21: `DeviceHourlyAggregator` - rotina com catch-up idempotente
 
 **What**: Implementar `aggregateClosedHours(Instant now)`: agrupa as leituras brutas de horas já fechadas por chave/tipo/hora, grava a média e apaga as brutas do grupo na mesma transação, com transação `REQUIRES_NEW` por grupo e log de falha por grupo.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceHourlyAggregator.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceHourlyAggregator.java`
 **Depends on**: T20
 **Reuses**: método de criação de T20
 **Requirement**: DEV-09
@@ -732,7 +732,7 @@ T52 não depende de outras tarefas da fase.
 ### T22: `DeviceHourlyAggregator` - reabertura de hora por leitura atrasada
 
 **What**: Implementar `mergeLate(...)` com resultados `MERGED | RAW_STORED | DISCARDED_EDITED | DISCARDED_DELETED | DISCARDED_TOO_OLD`: se o registro da hora existe, descarta quando excluído ou quando há evento de auditoria UPDATED; senão recalcula pela média ponderada `(m×n + x)/(n+1)` e incrementa `sampleCount`; hora fechada sem registro e dentro de 24 h guarda leitura bruta; hora fechada há mais de 24 h descarta.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceHourlyAggregator.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceHourlyAggregator.java`
 **Depends on**: T21, T18
 **Reuses**: `AuditEventRepository.existsByRecordTypeAndRecordIdAndAction`, repositórios de T13/T14
 **Requirement**: DEV-10
@@ -763,7 +763,7 @@ T52 não depende de outras tarefas da fase.
 ### T23: `DeviceHourlyAggregator` - agregação na exclusão da chave
 
 **What**: Implementar `aggregateKeyIncludingPartial(DeviceKey, Instant now)`: agrega todas as leituras brutas pendentes da chave, inclusive a hora parcial (com `measuredAt` = `now`), e apaga as brutas.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceHourlyAggregator.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceHourlyAggregator.java`
 **Depends on**: T22
 **Reuses**: criação e fusão de T20 e T22
 **Requirement**: DEV-09, DEV-04
@@ -791,7 +791,7 @@ T52 não depende de outras tarefas da fase.
 ### T24: Criar `DeviceHourlyScheduler`
 
 **What**: Agendador `@Scheduled(cron = "30 0 * * * *", zone = "America/Sao_Paulo")` que chama `aggregateClosedHours(now)` com `Clock` injetado e captura exceções com log.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceHourlyScheduler.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceHourlyScheduler.java`
 **Depends on**: T21
 **Reuses**: `notification/schedule/NotificationScheduler.java`
 **Requirement**: DEV-09
@@ -821,7 +821,7 @@ T52 não depende de outras tarefas da fase.
 ### T25: `DeviceKeyService` - criar, listar e obter o valor
 
 **What**: Implementar criação (gera, cifra, calcula hash, nome único por ETE sem diferenciar maiúsculas, 409 se duplicado), listagem (sem valor, com `status` online/offline/never pela regra de `offlineMinutes`) e `secret(id)` (decifra sob demanda).
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyService.java`
 **Depends on**: T3, T4, T5, T7, T1
 **Reuses**: `StationService.requireStation`, `CurrentUserService`, `BusinessException`
 **Requirement**: DEV-01, DEV-02, DEV-13
@@ -851,7 +851,7 @@ T52 não depende de outras tarefas da fase.
 ### T26: `DeviceKeyService` - desativar e reativar com auditoria
 
 **What**: `setActive(id, active, admin)` que altera o estado e registra evento de auditoria `DEVICE_KEY` com descrição fixa (sem o valor da chave).
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyService.java`
 **Depends on**: T25, T18
 **Reuses**: `AuditService.recordUpdate`
 **Requirement**: DEV-04, DEV-05
@@ -880,7 +880,7 @@ T52 não depende de outras tarefas da fase.
 ### T27: `DeviceKeyService` - excluir chave
 
 **What**: `delete(id, admin)`: agrega as leituras pendentes (`aggregateKeyIncludingPartial`), anula `device_key_id` nos registros de média por UPDATE em lote (mantendo `deviceName`), remove a chave e seus valores ao vivo e registra auditoria `DEVICE_KEY` (ação DELETED).
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyService.java`
 **Depends on**: T26, T23
 **Reuses**: `DeviceHourlyAggregator`, `AuditService.recordDelete`
 **Requirement**: DEV-04, DEV-05, DEV-09
@@ -909,7 +909,7 @@ T52 não depende de outras tarefas da fase.
 ### T28: Criar `DeviceKeyController`
 
 **What**: Controller `/api/device-keys` com `GET` (lista), `POST` (cria), `GET /{id}/secret`, `PATCH /{id}/active` e `DELETE /{id}`, todos com `@PreAuthorize("hasRole('ADMIN')")`, mais os DTOs `DeviceKeyResponse`, `DeviceKeyCreateRequest`, `DeviceKeySecretResponse` e `DeviceKeyActiveRequest`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceKeyController.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceKeyController.java`
 **Depends on**: T27
 **Reuses**: padrão de `measurement/FlowMeasurementController.java` e `@AuthenticationPrincipal UserPrincipal`
 **Requirement**: DEV-01, DEV-02, DEV-03, DEV-04
@@ -940,7 +940,7 @@ T52 não depende de outras tarefas da fase.
 ### T29: Emitir JWT do dispositivo em `JwtService`
 
 **What**: Adicionar `generateDeviceAccessToken(DeviceKey)` (subject `device:<id>`, claims `role=DEVICE`, `deviceKeyId`, `stationId`, `tokenType=access`), `isDeviceToken(String)` e `deviceKeyId(String)`; criar `DevicePrincipal` (`UserDetails` com autoridade `ROLE_DEVICE`, `deviceKeyId`, `stationId`, `name`).
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/security/JwtService.java`
+**Where**: `backend/src/main/java/br/com/ete/security/JwtService.java`
 **Depends on**: T7
 **Reuses**: `generateAccessToken` e `parseClaims`
 **Requirement**: DEV-06
@@ -969,7 +969,7 @@ T52 não depende de outras tarefas da fase.
 ### T30: Autenticar o DEVICE em `JwtAuthenticationFilter`
 
 **What**: No filtro, quando o token é de dispositivo, carregar a chave pelo id, exigir `active` e montar `DevicePrincipal`; chave ausente ou desativada deixa a requisição sem autenticação (401).
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/security/JwtAuthenticationFilter.java`
+**Where**: `backend/src/main/java/br/com/ete/security/JwtAuthenticationFilter.java`
 **Depends on**: T29
 **Reuses**: `authenticate` existente
 **Requirement**: DEV-07, DEV-04
@@ -998,7 +998,7 @@ T52 não depende de outras tarefas da fase.
 ### T31: Isolar o papel DEVICE em `SecurityConfig`
 
 **What**: Liberar `POST /api/auth/device-login`, restringir `POST /api/device/readings` a `hasRole('DEVICE')` e trocar `anyRequest().authenticated()` por `hasAnyRole('OPERATOR','SUPERVISOR','ADMIN','VIEWER')`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/security/SecurityConfig.java`
+**Where**: `backend/src/main/java/br/com/ete/security/SecurityConfig.java`
 **Depends on**: T30
 **Reuses**: regras existentes de `authorizeHttpRequests`
 **Requirement**: DEV-07
@@ -1027,7 +1027,7 @@ T52 não depende de outras tarefas da fase.
 ### T32: Implementar `DeviceLoginThrottle`
 
 **What**: Limitador em memória por IP: 10 falhas em 5 minutos bloqueiam o IP por 15 minutos; sucesso zera as falhas; `Clock` injetado.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceLoginThrottle.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceLoginThrottle.java`
 **Depends on**: None
 **Reuses**: `Clock` do `SchedulingConfig`
 **Requirement**: DEV-06
@@ -1056,7 +1056,7 @@ T52 não depende de outras tarefas da fase.
 ### T33: Implementar `DeviceAuthService`
 
 **What**: `login(String key, String ip)`: rejeita bloqueio (429), valida formato (24 caracteres), busca por hash, exige chave ativa, emite o token e registra falha ou sucesso no limitador; falhas retornam sempre o mesmo erro genérico.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceAuthService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceAuthService.java`
 **Depends on**: T29, T32
 **Reuses**: `DeviceKeyHasher`, `DeviceKeyRepository`, `JwtService`
 **Requirement**: DEV-06
@@ -1085,7 +1085,7 @@ T52 não depende de outras tarefas da fase.
 ### T34: Criar `DeviceAuthController`
 
 **What**: `POST /api/auth/device-login` com corpo `{key}`; 200 com `{accessToken, tokenType, expiresInSeconds}`, 401 genérico para falha, 429 para IP bloqueado; IP via `request.getRemoteAddr()`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceAuthController.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceAuthController.java`
 **Depends on**: T33
 **Reuses**: `security/AuthController.java`, `GlobalExceptionHandler`
 **Requirement**: DEV-06
@@ -1115,7 +1115,7 @@ T52 não depende de outras tarefas da fase.
 ### T35: Implementar `DeviceRateLimiter`
 
 **What**: Limitador por chave de janela fixa de 1 minuto, com limite vindo de `DeviceProperties.rateLimitPerMinute`, em memória, `Clock` injetado.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceRateLimiter.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceRateLimiter.java`
 **Depends on**: T1
 **Reuses**: `DeviceProperties`, `Clock`
 **Requirement**: DEV-08
@@ -1143,7 +1143,7 @@ T52 não depende de outras tarefas da fase.
 ### T36: `DeviceReadingService` - validar e gravar leituras brutas
 
 **What**: `ingest(DevicePrincipal, DeviceReadingRequest)`: aplica o limite (`DeviceRateLimiter`), exige ao menos um valor, valida faixas (`heightCm` 0–45, pH 0–14, 2 casas), ignora valores inválidos listando `rejected`, resolve `measuredAt` (hora do servidor se ausente; 400 se no futuro), calcula `flowLiters` com `FlowRateCalculator` e grava uma `DeviceReading` por valor aceito.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceReadingService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceReadingService.java`
 **Depends on**: T35, T9
 **Reuses**: `FlowRateCalculator`, faixas de `FlowMeasurementRequest` e `PhMeasurementRequest`
 **Requirement**: DEV-08
@@ -1174,7 +1174,7 @@ T52 não depende de outras tarefas da fase.
 ### T37: `DeviceReadingService` - último envio e valores ao vivo
 
 **What**: A cada leitura aceita, atualizar na `DeviceKey` o `lastSeenAt` (hora do servidor) e os últimos valores ao vivo (altura e litros, pH entrada, pH saída) com o `measuredAt` da leitura.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceReadingService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceReadingService.java`
 **Depends on**: T36
 **Reuses**: `DeviceKey.recordSeen`, `recordLiveFlow`, `recordLivePh`
 **Requirement**: DEV-08, DEV-12
@@ -1203,7 +1203,7 @@ T52 não depende de outras tarefas da fase.
 ### T38: `DeviceReadingService` - leituras de horas fechadas
 
 **What**: Classificar cada leitura pelo `measuredAt`: hora ainda aberta grava bruta; hora fechada há mais de 24 h é descartada; demais casos delegam a `DeviceHourlyAggregator.mergeLate`; a resposta lista `discarded` com o motivo.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceReadingService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceReadingService.java`
 **Depends on**: T37, T22
 **Reuses**: `DeviceHourlyAggregator.mergeLate`
 **Requirement**: DEV-10
@@ -1232,7 +1232,7 @@ T52 não depende de outras tarefas da fase.
 ### T39: Criar `DeviceReadingController`
 
 **What**: `POST /api/device/readings` com `@PreAuthorize("hasRole('DEVICE')")`, corpo `{heightCm?, rawPh?, treatedPh?, measuredAt?}` e resposta `{accepted, rejected, discarded}`; mapear erros para 400 e 429.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceReadingController.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceReadingController.java`
 **Depends on**: T38
 **Reuses**: `GlobalExceptionHandler`, `@AuthenticationPrincipal`
 **Requirement**: DEV-07, DEV-08
@@ -1263,7 +1263,7 @@ T52 não depende de outras tarefas da fase.
 ### T40: Criar `DeviceLiveReadingService`
 
 **What**: Serviço que devolve, por lista de ETEs, o valor ao vivo mais recente de vazão, pH entrada e pH saída como `DashboardMeasurementResponse` (unidades "L" e "pH").
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceLiveReadingService.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceLiveReadingService.java`
 **Depends on**: T37
 **Reuses**: `DashboardMeasurementResponse`, `DeviceKeyRepository`
 **Requirement**: DEV-12
@@ -1291,7 +1291,7 @@ T52 não depende de outras tarefas da fase.
 ### T41: Usar valores ao vivo em `DashboardService`
 
 **What**: `latestFlow`, `latestRawPh` e `latestTreatedPh` passam a devolver o de `measuredAt` maior entre o último registro das tabelas e o valor ao vivo; séries, médias do dia e totais permanecem somente com os registros das tabelas.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/dashboard/DashboardService.java`
+**Where**: `backend/src/main/java/br/com/ete/dashboard/DashboardService.java`
 **Depends on**: T40
 **Reuses**: `latest*` existentes, `DeviceLiveReadingService`
 **Requirement**: DEV-12, DEV-14
@@ -1320,7 +1320,7 @@ T52 não depende de outras tarefas da fase.
 ### T42: Criar `DeviceOfflineMonitor`
 
 **What**: Monitor `@Scheduled(fixedRate = 60000)` que, para chaves ativas com `lastSeenAt`, dispara `DEVICE_OFFLINE_ALERT` uma vez por queda (dedupe `DEVICE_OFFLINE|<keyId>|<lastSeenAt>`, controle em `offlineNotifiedForSeenAt`) e `DEVICE_BACK_ONLINE` quando volta, aos destinatários de `deviceAlertRecipients`.
-**Where**: `backend/src/main/java/br/com/carbonifera/ete/device/DeviceOfflineMonitor.java`
+**Where**: `backend/src/main/java/br/com/ete/device/DeviceOfflineMonitor.java`
 **Depends on**: T19, T7
 **Reuses**: `lime/LimeMinStockMonitor.java`, `NotificationDispatcher`, `NotificationCommand`
 **Requirement**: DEV-13
@@ -1630,7 +1630,7 @@ T52 não depende de outras tarefas da fase.
 ### T53: Teste de integração ponta a ponta do backend
 
 **What**: `@SpringBootTest` com H2, `MockMvc` e `Clock` controlado: admin cria chave, Arduino faz login, envia leituras por 1 hora, a rotina agrega, lista de medições e dashboard refletem só a média, valor ao vivo aparece no card, DEVICE recebe 403 em rotas humanas, desativar gera 401 na próxima requisição e excluir preserva os registros.
-**Where**: `backend/src/test/java/br/com/carbonifera/ete/device/DeviceEndToEndIntegrationTest.java`
+**Where**: `backend/src/test/java/br/com/ete/device/DeviceEndToEndIntegrationTest.java`
 **Depends on**: T39, T41, T42, T31, T28
 **Reuses**: `application-test.yml`, `@SpringBootTest`, `MockMvc`
 **Requirement**: DEV-04, DEV-07, DEV-09, DEV-11, DEV-12, DEV-14

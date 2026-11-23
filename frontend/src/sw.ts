@@ -16,7 +16,7 @@ sw.addEventListener("sync", (event: ExtendableEvent & { tag?: string; lastChance
 
 sw.addEventListener("push", (event: PushEvent) => {
   const payload = readPushPayload(event);
-  event.waitUntil(self.registration.showNotification(payload.title || "Sistema ETE", { body: payload.body || payload.message || "", data: { url: normalizeUrl(payload.url) }, icon: "/icons/pwa-icon.svg", badge: "/icons/pwa-icon.svg" }));
+  event.waitUntil(self.registration.showNotification(payload.title || "Sistema ETE", { body: payload.body || payload.message || "", data: { url: normalizeUrl(payload.url) }, icon: "/icons/pwa-icon-192.png", badge: "/icons/pwa-icon-192.png" }));
 });
 sw.addEventListener("notificationclick", (event: NotificationEvent) => {
   event.notification.close();

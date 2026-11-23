@@ -24,7 +24,7 @@ export interface UserDirectoryEntry {
   role: UserRole;
 }
 
-export type StationMode = "consolidated" | "novo-horizonte" | "boa-vista";
+export type StationMode = "consolidated" | "empresa-1" | "empresa-2";
 export type OperationalStationId = Exclude<StationMode, "consolidated">;
 
 export interface StationOption {

@@ -171,12 +171,12 @@ function stationModeFromSlug(stationSlug: string | undefined): OperationalStatio
 
   const normalizedSlug = normalizeStationSlug(stationSlug);
 
-  if (normalizedSlug === "boa-vista") {
-    return "boa-vista";
+  if (normalizedSlug === "empresa-2") {
+    return "empresa-2";
   }
 
-  if (normalizedSlug === "novo-horizonte") {
-    return "novo-horizonte";
+  if (normalizedSlug === "empresa-1") {
+    return "empresa-1";
   }
 
   return undefined;

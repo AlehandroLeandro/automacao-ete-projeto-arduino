@@ -9,7 +9,7 @@ A abordagem de armazenamento (tabela bruta nova + média horária nas tabelas at
 
 ## Architecture Overview
 
-Pacote novo `br.com.carbonifera.ete.device` no backend. O Arduino entra por um papel novo (`DEVICE`) que só alcança `POST /api/device/readings`. As leituras de 1 minuto vão para `device_readings`; uma rotina horária as consolida em registros normais de `flow_measurements`/`ph_measurements`, que o resto do sistema já sabe ler. Os últimos valores ao vivo ficam na própria linha da chave e só o dashboard os usa.
+Pacote novo `br.com.ete.device` no backend. O Arduino entra por um papel novo (`DEVICE`) que só alcança `POST /api/device/readings`. As leituras de 1 minuto vão para `device_readings`; uma rotina horária as consolida em registros normais de `flow_measurements`/`ph_measurements`, que o resto do sistema já sabe ler. Os últimos valores ao vivo ficam na própria linha da chave e só o dashboard os usa.
 
 ```mermaid
 graph TD
@@ -51,7 +51,7 @@ Fluxo de uma leitura:
 
 | Component | Location | How to Use |
 | --------- | -------- | ---------- |
-| `FlowRateCalculator` | `backend/src/main/java/br/com/carbonifera/ete/measurement/FlowRateCalculator.java` | Calcula `flowLiters` de cada leitura e da média |
+| `FlowRateCalculator` | `backend/src/main/java/br/com/ete/measurement/FlowRateCalculator.java` | Calcula `flowLiters` de cada leitura e da média |
 | `FlowMeasurement`, `PhMeasurement` e repositórios | `.../measurement/` | Recebem a média horária; ganham colunas de dispositivo |
 | `AuditService`, `AuditEvent` | `.../audit/` | Eventos `DEVICE_KEY`; consulta de evento UPDATED para "hora editada" |
 | `JwtService`, `JwtAuthenticationFilter`, `SecurityConfig` | `.../security/` | Token e filtro do DEVICE; regra por papel |
@@ -330,16 +330,16 @@ Integer sampleCount;        // nulável
 
 | Concern | Location (file:line) | Impact | Mitigation |
 | ------- | -------------------- | ------ | ---------- |
-| `anyRequest().authenticated()` aceitaria um DEVICE em rotas sem `@PreAuthorize` (ex.: `/api/auth/change-password`, notificações), onde `@AuthenticationPrincipal UserPrincipal` seria nulo | `backend/src/main/java/br/com/carbonifera/ete/security/SecurityConfig.java:56` | 500 ou acesso indevido a rota humana | Trocar por `hasAnyRole` dos quatro papéis humanos e restringir `/api/device/readings` a `DEVICE`; teste cobre 403 em rotas amostrais |
+| `anyRequest().authenticated()` aceitaria um DEVICE em rotas sem `@PreAuthorize` (ex.: `/api/auth/change-password`, notificações), onde `@AuthenticationPrincipal UserPrincipal` seria nulo | `backend/src/main/java/br/com/ete/security/SecurityConfig.java:56` | 500 ou acesso indevido a rota humana | Trocar por `hasAnyRole` dos quatro papéis humanos e restringir `/api/device/readings` a `DEVICE`; teste cobre 403 em rotas amostrais |
 | Hibernate `ddl-auto: update` não remove NOT NULL nem atualiza checks de enum | `backend/src/main/resources/schema.sql:5` | Inserir registro sem autor, evento `DEVICE_KEY` ou notificação `DEVICE_*` falharia no Postgres (H2 de teste não detecta) | `schema.sql` ajusta `created_by_id` e recria `audit_events_record_type_check` e `notifications_type_check`; tarefa de verificação manual no Postgres (`\d`) antes do deploy |
-| `AuditService.resolveRecordStation` é `switch` exaustivo | `backend/src/main/java/br/com/carbonifera/ete/audit/AuditService.java:116` | Não compila com o novo enum | Incluir o caso `DEVICE_KEY` na mesma tarefa que cria o enum |
-| Operador pode editar `measuredAt` da média e, sem coluna própria, a rotina criaria duplicata | `backend/src/main/java/br/com/carbonifera/ete/measurement/FlowMeasurement.java:~75` | Duas médias para a mesma hora | `device_window_end` imutável com índice único |
-| Filtro de autor do operador exclui registros sem autor (`createdBy.id = :createdById`) | `backend/src/main/java/br/com/carbonifera/ete/measurement/FlowMeasurementRepository.java:62` | Operador não veria médias do Arduino | `or createdBy is null` nas consultas de lista, com teste de repositório |
+| `AuditService.resolveRecordStation` é `switch` exaustivo | `backend/src/main/java/br/com/ete/audit/AuditService.java:116` | Não compila com o novo enum | Incluir o caso `DEVICE_KEY` na mesma tarefa que cria o enum |
+| Operador pode editar `measuredAt` da média e, sem coluna própria, a rotina criaria duplicata | `backend/src/main/java/br/com/ete/measurement/FlowMeasurement.java:~75` | Duas médias para a mesma hora | `device_window_end` imutável com índice único |
+| Filtro de autor do operador exclui registros sem autor (`createdBy.id = :createdById`) | `backend/src/main/java/br/com/ete/measurement/FlowMeasurementRepository.java:62` | Operador não veria médias do Arduino | `or createdBy is null` nas consultas de lista, com teste de repositório |
 | Chave decifrável no banco; vazar o segredo de cifra expõe todas as chaves | `DeviceKeyCipher` (novo) | Falsificação de Arduinos | Segredo só em env; mínimo 32 caracteres; rotação = excluir e gerar chaves de novo (documentar); `/secret` só ADMIN |
 | IP do Arduino atrás de proxy reverso aparece como o do proxy no limitador | `DeviceAuthController` (novo) | Bloqueio de todos os Arduinos por falhas de um | Usar `X-Forwarded-For` apenas se o proxy confiável estiver configurado (`server.forward-headers-strategy`); registrar como pendência de implantação |
 | Transporte sem TLS expõe a chave no login | Infra | Interceptação da chave | Assunção de HTTPS via proxy; registrar no README de implantação |
 | Estado em memória (limitador, rate limit) se perde no restart e não é compartilhado entre instâncias | `DeviceLoginThrottle`, `DeviceRateLimiter` (novos) | Limite zerado após restart | Aceito: 1 instância no `docker-compose`; documentado |
-| `DashboardService.currentDayAverages` soma litros do dia (`flowAverages.total()`) | `backend/src/main/java/br/com/carbonifera/ete/dashboard/DashboardService.java:288` | Misturar leituras de 1 minuto inflaria o total | Só médias horárias entram nas tabelas; teste confirma que leituras brutas e valores ao vivo não alteram o total |
+| `DashboardService.currentDayAverages` soma litros do dia (`flowAverages.total()`) | `backend/src/main/java/br/com/ete/dashboard/DashboardService.java:288` | Misturar leituras de 1 minuto inflaria o total | Só médias horárias entram nas tabelas; teste confirma que leituras brutas e valores ao vivo não alteram o total |
 | Frontend assume `createdByName` e `createdById` não nulos | `frontend/src/utils/apiAdapters.ts:55` | Quebra ao exibir registro de equipamento | Tipos nulos, rótulo "Equipamento: <nome>" vindo do backend, teste de adaptador |
 | Frontend sem biblioteca de teste de componente | `frontend/test-runner.mts` | Tela sem teste automatizado de renderização | Lógica testável isolada em `utils/deviceKeys.ts`; verificação visual no Verifier |
 

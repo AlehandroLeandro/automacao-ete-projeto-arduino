@@ -3,14 +3,20 @@
   "short_name": "ETE",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f7f6f1",
-  "theme_color": "#173f35",
+  "background_color": "#edf3f5",
+  "theme_color": "#0b2b3c",
   "icons": [
     {
-      "src": "/icons/pwa-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icons/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

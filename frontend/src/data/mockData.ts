@@ -12,8 +12,8 @@ import type {
 } from "../types";
 
 export const operationalStationOptions: Array<StationOption & { id: OperationalStationId }> = [
-  { id: "novo-horizonte", label: "ETE Novo Horizonte" },
-  { id: "boa-vista", label: "ETE Boa Vista" },
+  { id: "empresa-1", label: "Empresa 1" },
+  { id: "empresa-2", label: "Empresa 2" },
 ];
 
 export const stationOptions: StationOption[] = [
@@ -54,8 +54,8 @@ export const dashboardSnapshots: Record<string, DashboardSnapshot> = {
     flowLitersPerHour: 18400,
     updatedAt: new Date().toISOString(),
   },
-  "novo-horizonte": {
-    station: "novo-horizonte",
+  "empresa-1": {
+    station: "empresa-1",
     status: "operating",
     limeStockBags: 28,
     limeConsumptionLastShiftBags: 4,
@@ -64,8 +64,8 @@ export const dashboardSnapshots: Record<string, DashboardSnapshot> = {
     flowLitersPerHour: 10600,
     updatedAt: new Date().toISOString(),
   },
-  "boa-vista": {
-    station: "boa-vista",
+  "empresa-2": {
+    station: "empresa-2",
     status: "stopped",
     stoppedSince,
     stoppedReason: "Falta de cal",
@@ -81,7 +81,7 @@ export const dashboardSnapshots: Record<string, DashboardSnapshot> = {
 export const phRecords: PhRecord[] = [
   {
     id: "ph-001",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     kind: "input",
     ph: 6.76,
     collectedAt: "2026-06-29T08:00:00.000Z",
@@ -94,7 +94,7 @@ export const phRecords: PhRecord[] = [
   },
   {
     id: "ph-002",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     kind: "output",
     ph: 7.08,
     collectedAt: "2026-06-29T08:05:00.000Z",
@@ -102,7 +102,7 @@ export const phRecords: PhRecord[] = [
   },
   {
     id: "ph-003",
-    station: "ETE Boa Vista",
+    station: "Empresa 2",
     kind: "input",
     ph: 6.91,
     collectedAt: "2026-06-29T09:00:00.000Z",
@@ -110,7 +110,7 @@ export const phRecords: PhRecord[] = [
   },
   {
     id: "ph-004",
-    station: "ETE Boa Vista",
+    station: "Empresa 2",
     kind: "output",
     ph: 7.31,
     collectedAt: "2026-06-28T10:05:00.000Z",
@@ -127,14 +127,14 @@ export const phRecords: PhRecord[] = [
 export const flowRecords: FlowRecord[] = [
   {
     id: "flow-001",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     liters: 10600,
     collectedAt: "2026-06-29T08:00:00.000Z",
     operator: "Operador ETE",
   },
   {
     id: "flow-002",
-    station: "ETE Boa Vista",
+    station: "Empresa 2",
     liters: 7800,
     collectedAt: "2026-06-29T09:00:00.000Z",
     operator: "Operador ETE",
@@ -146,7 +146,7 @@ export const flowRecords: FlowRecord[] = [
   },
   {
     id: "flow-003",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     liters: 9900,
     collectedAt: "2026-06-28T11:00:00.000Z",
     operator: "Operador ETE",
@@ -162,7 +162,7 @@ export const flowRecords: FlowRecord[] = [
 export const limeRecords: LimeRecord[] = [
   {
     id: "lime-001",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     type: "entry",
     quantityBags: 28,
     stockAfterBags: 28,
@@ -171,7 +171,7 @@ export const limeRecords: LimeRecord[] = [
   },
   {
     id: "lime-002",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     type: "consumption",
     quantityBags: 4,
     stockAfterBags: 24,
@@ -180,7 +180,7 @@ export const limeRecords: LimeRecord[] = [
   },
   {
     id: "lime-003",
-    station: "ETE Boa Vista",
+    station: "Empresa 2",
     type: "entry",
     quantityBags: 12,
     stockAfterBags: 26,
@@ -206,7 +206,7 @@ export function stopReasonText(reason: StopReason, reasonDetail?: string | null)
 export const stopRecords: StopRecord[] = [
   {
     id: "stop-001",
-    station: "ETE Boa Vista",
+    station: "Empresa 2",
     reason: "falta_de_cal",
     startedAt: stoppedSince,
     status: "ACTIVE",
@@ -214,7 +214,7 @@ export const stopRecords: StopRecord[] = [
   },
   {
     id: "stop-002",
-    station: "ETE Novo Horizonte",
+    station: "Empresa 1",
     reason: "falta_de_agua",
     startedAt: "2026-06-28T18:00:00.000Z",
     endedAt: "2026-06-28T19:20:00.000Z",
@@ -228,7 +228,7 @@ export const stopRecords: StopRecord[] = [
   },
   {
     id: "stop-003",
-    station: "ETE Boa Vista",
+    station: "Empresa 2",
     reason: "outros",
     startedAt: "2026-06-27T12:00:00.000Z",
     endedAt: "2026-06-27T12:30:00.000Z",

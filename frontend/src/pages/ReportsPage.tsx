@@ -106,7 +106,7 @@ export function ReportsPage() {
       <PageHeader
         eyebrow="Análise"
         title="Relatórios"
-        description="Relatórios dedicados para informações coletadas e calculadas."
+        description="Dados coletados e calculados, prontos para exportar."
       />
 
       {isOffline ? <section className="state-panel"><h2>Indisponível offline</h2><p>Relatórios exigem conexão. Registros pendentes podem ser corrigidos em Pendências.</p></section> : null}

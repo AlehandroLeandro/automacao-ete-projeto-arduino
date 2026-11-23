@@ -353,7 +353,7 @@ export function PhMeasurementsPage() {
       <PageHeader
         eyebrow="Medições"
         title="pH de águas"
-        description="Registro de pH de entrada e saída com seleção visual do tipo de água."
+        description="Leituras de pH da água de entrada e de saída."
       />
 
       <div className="tab-row" role="radiogroup" aria-label="Tipo de água">

@@ -1,0 +1,12 @@
+package br.com.ete.notification;
+
+public enum NotificationType {
+    INTERNAL,
+    HOURLY_MEASUREMENT_REMINDER,
+    STOPPAGE_ALERT,
+    CAL_SHIFT_MOVEMENT_REMINDER,
+    LIME_MIN_STOCK_ALERT,
+    OFFLINE_SYNC_FAILURE,
+    DEVICE_OFFLINE_ALERT,
+    DEVICE_BACK_ONLINE
+}

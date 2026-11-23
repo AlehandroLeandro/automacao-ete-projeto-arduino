@@ -7,11 +7,11 @@ interface PageHeaderProps {
   actions?: ReactNode;
 }
 
-export function PageHeader({ actions, description, eyebrow, title }: PageHeaderProps) {
+// `eyebrow` continua aceito, mas não é exibido: a seção já aparece no menu.
+export function PageHeader({ actions, description, title }: PageHeaderProps) {
   return (
     <header className="page-header">
       <div>
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1>{title}</h1>
         {description ? <p>{description}</p> : null}
       </div>

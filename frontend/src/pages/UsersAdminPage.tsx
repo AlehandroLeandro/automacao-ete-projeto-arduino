@@ -263,7 +263,7 @@ export function UsersAdminPage() {
       <PageHeader
         eyebrow="Administração"
         title="Usuários"
-        description="Cadastro integrado ao backend real com senha temporária e troca obrigatória no próximo login."
+        description="Novos usuários recebem uma senha temporária e a trocam no primeiro acesso."
       />
 
       <form className="surface-panel form-grid" onSubmit={(event) => void handleSubmit(event)}>

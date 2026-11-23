@@ -73,8 +73,8 @@ test("adapts backend auth tokens to a session with backend station id and UI sta
     username: "operador",
     role: "OPERATOR",
     stationId,
-    stationSlug: "novo-horizonte",
-    stationName: "ETE Novo Horizonte",
+    stationSlug: "empresa-1",
+    stationName: "Empresa 1",
     changePassword: true,
     operatorRecordWindowHours: 48,
   });
@@ -82,7 +82,7 @@ test("adapts backend auth tokens to a session with backend station id and UI sta
   assert.equal(session.accessToken, accessToken);
   assert.equal(session.refreshToken, refreshToken);
   assert.equal(session.user.stationId, stationId);
-  assert.equal(session.user.stationMode, "novo-horizonte");
+  assert.equal(session.user.stationMode, "empresa-1");
   assert.equal(session.user.operatorRecordWindowHours, 48);
   assert.equal(session.user.changePassword, true);
 });
@@ -129,8 +129,8 @@ test("marks the local session password as changed after a 204 change-password re
     username: "operador",
     role: "OPERATOR",
     stationId: "a8efe295-8c1d-4d64-a198-a47a7e32dcf7",
-    stationSlug: "boa-vista",
-    stationName: "ETE Boa Vista",
+    stationSlug: "empresa-2",
+    stationName: "Empresa 2",
     changePassword: true,
   });
 

@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import { BrandMark } from "../components/BrandMark";
+import { PhScale } from "../components/PhScale";
 
 interface LocationState {
   from?: {
@@ -53,11 +54,10 @@ export function LoginPage() {
         <div className="auth-brand" aria-label="Sistema de Gestão de ETE">
           <BrandMark />
           <strong>Sistema de Gestão de ETE</strong>
+          <PhScale className="ph-scale--legend" />
         </div>
         <div>
-          <p className="eyebrow">Acesso restrito</p>
-          <h1>Entrar no sistema</h1>
-          <p>Use suas credenciais operacionais para acessar coletas, paradas e relatórios.</p>
+          <h1>Entrar</h1>
         </div>
 
         {error ? <p className="form-error">{error}</p> : null}

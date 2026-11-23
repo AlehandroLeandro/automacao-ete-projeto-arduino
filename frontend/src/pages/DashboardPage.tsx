@@ -307,12 +307,7 @@ function DashboardContent({
       {/* Cabeçalho e seletor de escopo permanecem sempre montados (AD-004) */}
       <PageHeader
         eyebrow="Estação de tratamento de efluentes"
-        title="Dashboard operacional"
-        description={
-          flowAndStopsOnly
-            ? "Acompanhamento da vazão e das paradas da estação."
-            : "Acompanhamento das leituras, estoque de cal e status de funcionamento."
-        }
+        title="Painel operacional"
       />
 
       {showFullDashboard ? (
@@ -390,8 +385,8 @@ function DashboardContent({
         ) : isInitialLoading ? (
           <section className="state-panel">
             <span className="spinner" aria-hidden="true" />
-            <h2>Carregando dashboard</h2>
-            <p>Buscando indicadores operacionais no backend.</p>
+            <h2>Carregando o painel</h2>
+            <p>Buscando as últimas leituras das estações.</p>
           </section>
         ) : hasBlockingError ? (
           <section className="state-panel state-panel--error">
@@ -767,7 +762,7 @@ const limeMovementLabels: Record<ApiLimeRecordType, string> = {
   ENTRY: "Entrada",
 };
 
-const workedHoursStationOrder: OperationalStationId[] = ["boa-vista", "novo-horizonte"];
+const workedHoursStationOrder: OperationalStationId[] = ["empresa-2", "empresa-1"];
 
 function buildWorkedHoursEntries(response: DashboardResponse, stationMode: StationMode): WorkedHoursEntry[] {
   if (stationMode !== "consolidated") {
@@ -847,11 +842,11 @@ const maxDashboardLogItems = 10;
 
 function getStationColor(stationName: string): string {
   const stationMode = getStationModeByName(stationName);
-  return stationChartSeeds.find((station) => station.id === stationMode)?.color ?? "#5e6b68";
+  return stationChartSeeds.find((station) => station.id === stationMode)?.color ?? "#566a75";
 }
 
 function getStationModeByName(stationName: string): OperationalStationId {
-  return sameStationName(stationName, getOperationalStationLabel("boa-vista")) ? "boa-vista" : "novo-horizonte";
+  return sameStationName(stationName, getOperationalStationLabel("empresa-2")) ? "empresa-2" : "empresa-1";
 }
 
 function getShortStationLabel(stationName: string): string {
@@ -900,10 +895,10 @@ function getStatusDescription(
       return "1 estação com parada ativa.";
     }
 
-    return stoppedCount > 0 ? `${stoppedCount} estações com parada ativa.` : "Ambas as estações operando normalmente.";
+    return stoppedCount > 0 ? `${stoppedCount} estações com parada ativa.` : "As duas estações estão operando.";
   }
 
-  return "Estação selecionada operando normalmente.";
+  return "Estação operando.";
 }
 
 function buildDashboardCharts(stationMode: StationMode, periodRange: DashboardPeriodRange | null): DashboardChartItem[] {
@@ -956,17 +951,17 @@ interface StationChartSeed {
 
 const stationChartSeeds: StationChartSeed[] = [
   {
-    id: "novo-horizonte",
-    label: "Novo Horizonte",
-    color: "#00b982",
+    id: "empresa-1",
+    label: "Empresa 1",
+    color: "#23877f",
     flow: 18800,
     inputPh: 6.72,
     outputPh: 7.18,
   },
   {
-    id: "boa-vista",
-    label: "Boa Vista",
-    color: "#1594d2",
+    id: "empresa-2",
+    label: "Empresa 2",
+    color: "#1c78a3",
     flow: 15600,
     inputPh: 6.55,
     outputPh: 7.04,
@@ -1028,8 +1023,7 @@ function DashboardAccessDenied() {
     <section className="dashboard">
       <PageHeader
         eyebrow="Estação de tratamento de efluentes"
-        title="Dashboard operacional"
-        description="Acompanhamento das leituras, estoque de cal e status de funcionamento."
+        title="Painel operacional"
       />
       <section className="state-panel state-panel--error">
         <h2>Acesso indisponível</h2>

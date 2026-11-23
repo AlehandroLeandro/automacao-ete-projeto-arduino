@@ -350,7 +350,7 @@ export function FlowPage() {
       <PageHeader
         eyebrow="Medições"
         title="Vazão de água"
-        description="Cadastro e consulta das leituras horárias de vazão."
+        description="Leituras horárias de vazão."
       />
 
       {!hasStationScope ? (

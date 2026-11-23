@@ -20,13 +20,13 @@ const scopeOptionVisuals: Record<StationMode, ScopeOptionVisual> = {
     Icon: Layers3,
     stationClassName: "dashboard-scope-selector__dot--consolidated",
   },
-  "novo-horizonte": {
+  "empresa-1": {
     Icon: Building2,
-    stationClassName: "dashboard-scope-selector__dot--novo-horizonte",
+    stationClassName: "dashboard-scope-selector__dot--empresa-1",
   },
-  "boa-vista": {
+  "empresa-2": {
     Icon: Building,
-    stationClassName: "dashboard-scope-selector__dot--boa-vista",
+    stationClassName: "dashboard-scope-selector__dot--empresa-2",
   },
 };
 

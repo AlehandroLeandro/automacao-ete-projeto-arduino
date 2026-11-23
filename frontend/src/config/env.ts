@@ -1,6 +1,6 @@
 import type { StationMode } from "../types";
 
-const stationModes: StationMode[] = ["consolidated", "novo-horizonte", "boa-vista"];
+const stationModes: StationMode[] = ["consolidated", "empresa-1", "empresa-2"];
 
 function resolveDefaultStationMode(value: string | undefined): StationMode {
   if (value && stationModes.includes(value as StationMode)) {

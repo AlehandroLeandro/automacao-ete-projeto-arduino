@@ -4,8 +4,8 @@ import { listStations } from "../services/stationApi";
 import type { ApiStation, AuthUser, OperationalStationId } from "../types";
 
 const apiStationSlugByMode: Record<OperationalStationId, string> = {
-  "boa-vista": "ete-boa-vista",
-  "novo-horizonte": "ete-novo-horizonte",
+  "empresa-2": "ete-empresa-2",
+  "empresa-1": "ete-empresa-1",
 };
 
 export async function resolveApiStationId(stationMode: OperationalStationId): Promise<string> {
@@ -55,12 +55,12 @@ export async function stationModeFromApiId(stationId: string): Promise<Operation
 export function stationModeFromApiSlug(stationSlug: string): OperationalStationId | undefined {
   const normalizedSlug = normalizeStationSlug(stationSlug);
 
-  if (normalizedSlug === "boa-vista") {
-    return "boa-vista";
+  if (normalizedSlug === "empresa-2") {
+    return "empresa-2";
   }
 
-  if (normalizedSlug === "novo-horizonte") {
-    return "novo-horizonte";
+  if (normalizedSlug === "empresa-1") {
+    return "empresa-1";
   }
 
   return undefined;

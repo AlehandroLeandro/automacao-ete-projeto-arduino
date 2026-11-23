@@ -21,8 +21,8 @@ const mockUsers: Record<string, MockUserRecord> = {
     password: "operador123",
     role: "OPERATOR",
     changePassword: false,
-    stationName: "ETE Novo Horizonte",
-    stationMode: "novo-horizonte",
+    stationName: "Empresa 1",
+    stationMode: "empresa-1",
   },
   encarregado: {
     id: "usr-supervisor",
@@ -47,8 +47,8 @@ const mockUsers: Record<string, MockUserRecord> = {
     password: "temp12345",
     role: "OPERATOR",
     changePassword: true,
-    stationName: "ETE Boa Vista",
-    stationMode: "boa-vista",
+    stationName: "Empresa 2",
+    stationMode: "empresa-2",
   },
 };
 

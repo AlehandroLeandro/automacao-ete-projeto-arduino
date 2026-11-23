@@ -1,6 +1,6 @@
 # Sistema de Gestao ETE
 
-Sistema web para coletar, centralizar e acompanhar dados operacionais das estacoes de tratamento de agua da Carbonifera Catarinense.
+Sistema web para coletar, centralizar e acompanhar dados operacionais das estacoes de tratamento de agua.
 
 ## Estrutura
 
@@ -34,7 +34,7 @@ Servicos padrao:
 ## Decisoes iniciais
 
 - O sistema suporta multiplas estacoes desde o inicio.
-- As estacoes iniciais sao `ETE Novo Horizonte` e `ETE Boa Vista`.
+- As estacoes iniciais sao `Empresa 1` e `Empresa 2`.
 - Dashboards e relatorios suportam filtro por estacao e visao consolidada.
 - Turnos fixos: `05:00-17:00` e `17:00-05:00`.
 - Timezone oficial: `America/Sao_Paulo`.

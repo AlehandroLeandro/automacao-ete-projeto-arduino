@@ -21,7 +21,6 @@ export function MorePage() {
       <PageHeader
         eyebrow="Sistema"
         title="Mais"
-        description="Acesso rápido a seções complementares e informações da sessão."
       />
 
       <section className="surface-panel profile-panel">
